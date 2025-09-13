@@ -43,6 +43,7 @@ Produce an automated, reproducible pipeline that:
 - [skani](https://github.com/bluenote-1577/skani)
 - [MobileElementFinder](https://pypi.org/project/MobileElementFinder/)
 - [ISfinder](https://www-is.biotoul.fr/)
+- [IntegronFinder](https://github.com/gem-pasteur/Integron_Finder)
 - [Bakta](https://pubmed.ncbi.nlm.nih.gov/34739369/)
 - [Eggnog](http://eggnog-mapper.embl.de/)
 - [gggenes](https://wilkox.org/gggenes/)
