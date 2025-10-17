@@ -1,0 +1,14 @@
+import os
+
+configfile: "../config/config.yaml"
+
+INPUT_TYPE = config["input_type"]
+
+rule all:
+    input:
+        "results/parsed_gff.txt"
+
+if INPUT_TYPE == "gff":
+    include: "rules/process_gff.smk"
+elif INPUT_TYPE == "gff_fasta":
+    include: "rules/process_gff_fasta.smk"

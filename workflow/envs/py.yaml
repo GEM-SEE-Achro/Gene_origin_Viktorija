@@ -1,0 +1,8 @@
+name: py
+channels:
+  - conda-forge
+  - bioconda
+  - defaults
+dependencies:
+  - python=3.12
+  - bcbio-gff
