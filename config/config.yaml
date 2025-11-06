@@ -1,3 +1,3 @@
 input_type: "gff_fasta"
-gff_file: "../../dataset_1/Genes.GFF3"
-fasta_file: "../../dataset_1/NC_000913.3_330958..437312.fa"
+gff_file: "../../dataset_1/pKPHS1.gff3"
+fasta_file: "../../dataset_1/pKPHS1.fasta"
