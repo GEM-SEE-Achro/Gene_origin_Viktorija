@@ -7,7 +7,7 @@ INPUT_TYPE = config["input_type"]
 rule all:
     input:
         "results/parsed_gff.txt",
-        "results/abricate_results.tab"
+        "results/abricate/abricate_results.tab"
 
 if INPUT_TYPE == "gff":
     include: "rules/process_gff.smk"
