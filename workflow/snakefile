@@ -6,9 +6,12 @@ INPUT_TYPE = config["input_type"]
 
 rule all:
     input:
-        "results/parsed_gff.txt"
+        "results/parsed_gff.txt",
+        "results/abricate_results.tab"
 
 if INPUT_TYPE == "gff":
     include: "rules/process_gff.smk"
 elif INPUT_TYPE == "gff_fasta":
     include: "rules/process_gff_fasta.smk"
+
+include: "rules/ABRicate.smk"
