@@ -1,5 +1,5 @@
 input_type: "fasta"
-input: "../../dataset_1/NC_000913.3_330958..437312.fa"
+input: "../../dataset_1/pKPHS1.fasta"
 
 bakta:
   db: "../../databases/db-light"
