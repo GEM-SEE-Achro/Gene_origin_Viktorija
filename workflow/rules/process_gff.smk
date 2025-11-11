@@ -1,6 +1,6 @@
 rule process_gff:
     input:
-        gff = config["gff_file"],
+        gff = config["input"],
         script = os.path.join("scripts", "parse_gff.py")
     output:
         parsed = "results/parsed_gff.txt"
