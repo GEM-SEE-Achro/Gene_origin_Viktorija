@@ -10,5 +10,5 @@ rule all:
 
 if INPUT_TYPE == "gff":
     include: "rules/process_gff.smk"
-elif INPUT_TYPE == "gff_fasta":
-    include: "rules/process_gff_fasta.smk"
+elif INPUT_TYPE == "fasta":
+    include: "rules/process_fasta.smk"

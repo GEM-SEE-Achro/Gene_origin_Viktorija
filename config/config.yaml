@@ -1,2 +1,6 @@
-input_type: "gff"
-input: "../../dataset_1/Genes.GFF3"
+input_type: "fasta"
+input: "../../dataset_1/NC_000913.3_330958..437312.fa"
+
+bakta:
+  db: "../../databases/db-light"
+  threads: 8
