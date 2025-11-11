@@ -1,3 +1,6 @@
-input_type: "gff_fasta"
-gff_file: "../../dataset_1/pKPHS1.gff3"
-fasta_file: "../../dataset_1/pKPHS1.fasta"
+input_type: "fasta"
+input: "../../dataset_1/NC_000913.3_330958..437312.fa"
+
+bakta:
+  db: "../../databases/db-light"
+  threads: 8
