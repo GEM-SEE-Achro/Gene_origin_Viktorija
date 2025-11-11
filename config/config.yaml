@@ -4,3 +4,7 @@ input: "../../dataset_1/NC_000913.3_330958..437312.fa"
 bakta:
   db: "../../databases/db-light"
   threads: 8
+
+abricate:
+  mincov: 50
+  minid: 50
