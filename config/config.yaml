@@ -1,8 +1,11 @@
+# Input type and file path
 input_type: "fasta"
 input: "../../dataset_1/pKPHS1.fasta"
 
+# Path to the bakta database and parameters for bakta
 bakta:
-  db: "../../databases/db-light"
+  db: "/scratch/lustre/home/vira9982/Gene_Origin/databases/bakta_db"
+  type: "light"
   threads: 8
 
 abricate:
