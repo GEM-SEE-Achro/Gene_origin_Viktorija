@@ -1,0 +1,92 @@
+Assuming unrestricted shared filesystem usage.
+host: node-03
+Building DAG of jobs...
+Using shell: /usr/bin/bash
+Provided cores: 10
+Rules claiming more threads will be scaled down.
+Job stats:
+job              count
+-------------  -------
+all                  1
+eggnog_mapper        1
+total                2
+
+Select jobs to execute...
+Execute 1 jobs...
+
+[Tue Jan  6 19:21:38 2026]
+localrule eggnog_mapper:
+    input: /scratch/lustre/home/vira9982/Gene_Origin/databases/eggnog_db/eggnog.db, /scratch/lustre/home/vira9982/Gene_Origin/databases/eggnog_db/eggnog_proteins.dmnd, ../../dataset_1/gi_6370850_6403370.fasta
+    output: results/eggnog/eggnog.emapper.hits, results/eggnog/eggnog.emapper.seed_orthologs, results/eggnog/eggnog.emapper.annotations
+    jobid: 8
+    reason: Missing output files: results/eggnog/eggnog.emapper.seed_orthologs, results/eggnog/eggnog.emapper.annotations, results/eggnog/eggnog.emapper.hits
+    threads: 8
+    resources: tmpdir=/tmp/slurm-vira9982-197845
+Shell command: 
+        emapper.py -i ../../dataset_1/gi_6370850_6403370.fasta -o results/eggnog/eggnog --data_dir /scratch/lustre/home/vira9982/Gene_Origin/databases/eggnog_db             -m diamond --itype genome --cpu 8 
+        
+Activating conda environment: .snakemake/conda/910b466026725cdbfdd12999fbb72ebd_
+[1;32mFunctional annotation of hits...[0m
+#  emapper-2.1.13-624b548
+# emapper.py  -i ../../dataset_1/gi_6370850_6403370.fasta -o results/eggnog/eggnog --data_dir /scratch/lustre/home/vira9982/Gene_Origin/databases/eggnog_db -m diamond --itype genome --cpu 8
+[1;33m  /scratch/lustre/home/vira9982/Gene_Origin/Gene_origin_Viktorija/workflow/.snakemake/conda/910b466026725cdbfdd12999fbb72ebd_/bin/diamond blastx -d '/scratch/lustre/home/vira9982/Gene_Origin/databases/eggnog_db/eggnog_proteins.dmnd' -q '/scratch/lustre/home/vira9982/Gene_Origin/dataset_1/gi_6370850_6403370.fasta' --threads 8 -o '/scratch/lustre/home/vira9982/Gene_Origin/Gene_origin_Viktorija/workflow/results/eggnog/eggnog.emapper.hits' --tmpdir '/scratch/lustre/home/vira9982/Gene_Origin/Gene_origin_Viktorija/workflow/emappertmp_dmdn_0irqoxeb' --sensitive --iterate -e 0.001 --max-target-seqs 0 --max-hsps 0  --outfmt 6 qseqid sseqid pident length mismatch gapopen qstart qend sstart send evalue bitscore qcovhsp scovhsp[0m
+[1;32mCrafting GFF file of CDS ...[0m
+[1;32mCrafting fasta file of CDS ...[0m
+Parsing fasta file /scratch/lustre/home/vira9982/Gene_Origin/dataset_1/gi_6370850_6403370.fasta...
+Fasta file /scratch/lustre/home/vira9982/Gene_Origin/dataset_1/gi_6370850_6403370.fasta parsing complete.
+[1;32mCreating gff file /scratch/lustre/home/vira9982/Gene_Origin/Gene_origin_Viktorija/workflow/results/eggnog/eggnog.emapper.genepred.gff...[0m
+38 1.8293941020965576 20.77 q/s (% mem usage: 2.30, % mem avail: 97.69)
+[32mDone[0m
+[1;33mResult files:[0m
+   /scratch/lustre/home/vira9982/Gene_Origin/Gene_origin_Viktorija/workflow/results/eggnog/eggnog.emapper.genepred.fasta
+   /scratch/lustre/home/vira9982/Gene_Origin/Gene_origin_Viktorija/workflow/results/eggnog/eggnog.emapper.genepred.gff
+   /scratch/lustre/home/vira9982/Gene_Origin/Gene_origin_Viktorija/workflow/results/eggnog/eggnog.emapper.hits
+   /scratch/lustre/home/vira9982/Gene_Origin/Gene_origin_Viktorija/workflow/results/eggnog/eggnog.emapper.seed_orthologs
+   /scratch/lustre/home/vira9982/Gene_Origin/Gene_origin_Viktorija/workflow/results/eggnog/eggnog.emapper.annotations
+
+================================================================================
+CITATION:
+If you use this software, please cite:
+
+[1] eggNOG-mapper v2: functional annotation, orthology assignments, and domain 
+      prediction at the metagenomic scale. Carlos P. Cantalapiedra, 
+      Ana Hernandez-Plaza, Ivica Letunic, Peer Bork, Jaime Huerta-Cepas. 2021.
+      Molecular Biology and Evolution, msab293, https://doi.org/10.1093/molbev/msab293
+
+[2] eggNOG 5.0: a hierarchical, functionally and phylogenetically annotated
+      orthology resource based on 5090 organisms and 2502 viruses. Jaime
+      Huerta-Cepas, Damian Szklarczyk, Davide Heller, Ana Hernandez-Plaza,
+      Sofia K Forslund, Helen Cook, Daniel R Mende, Ivica Letunic, Thomas
+      Rattei, Lars J Jensen, Christian von Mering and Peer Bork. Nucleic Acids
+      Research, Volume 47, Issue D1, 8 January 2019, Pages D309-D314,
+      https://doi.org/10.1093/nar/gky1085 
+
+[3] Sensitive protein alignments at tree-of-life scale using DIAMOND.
+       Buchfink B, Reuter K, Drost HG. 2021.
+       Nature Methods 18, 366–368 (2021). https://doi.org/10.1038/s41592-021-01101-x
+
+e.g. Functional annotation was performed using eggNOG-mapper (version emapper-2.1.13-624b548) [1]
+ based on eggNOG orthology data [2]. Sequence searches were performed using [3].
+
+================================================================================
+
+Total hits processed: 38
+Total time: 275 secs
+FINISHED
+[Tue Jan  6 19:26:14 2026]
+Finished jobid: 8 (Rule: eggnog_mapper)
+1 of 2 steps (50%) done
+Select jobs to execute...
+Execute 1 jobs...
+
+[Tue Jan  6 19:26:14 2026]
+localrule all:
+    input: results/parsed_gff.txt, results/abricate/abricate_summary.tab, results/eggnog/eggnog.emapper.hits, results/eggnog/eggnog.emapper.seed_orthologs, results/eggnog/eggnog.emapper.annotations
+    jobid: 0
+    reason: Input files updated by another job: results/eggnog/eggnog.emapper.seed_orthologs, results/eggnog/eggnog.emapper.annotations, results/eggnog/eggnog.emapper.hits
+    resources: tmpdir=/tmp/slurm-vira9982-197845
+Shell command: None
+[Tue Jan  6 19:26:14 2026]
+Finished jobid: 0 (Rule: all)
+2 of 2 steps (100%) done
+Complete log(s): /scratch/lustre/home/vira9982/Gene_Origin/Gene_origin_Viktorija/workflow/.snakemake/log/2026-01-06T192135.947568.snakemake.log

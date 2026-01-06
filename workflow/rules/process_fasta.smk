@@ -10,7 +10,6 @@ rule bakta_db:
         db_type = config["bakta"]["type"]
     conda:
         "../envs/bakta.yaml"
-    threads: 1
     shell:
         """
         bakta_db download --output {params.bakta_db} --type {params.db_type}
@@ -39,7 +38,7 @@ rule bakta:
             "db-light" if config["bakta"]["type"] == "light" else "db",
             "bakta.db"),
         fasta = config["input"],
-        update_flag = "database_update.done"
+        update_flag = "database_update.done" if config["bakta"]["update"] else []
     output:
         dir = directory("results/bakta"),
         gff = "results/bakta/bakta.gff3"

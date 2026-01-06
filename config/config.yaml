@@ -1,13 +1,18 @@
 # Input type and file path
 input_type: "fasta"
-input: "../../dataset_1/pKPHS1.fasta"
+input: "../../dataset_1/gi_6370850_6403370.fasta"
 
 # Path to the bakta database and parameters for bakta
 bakta:
   db: "/scratch/lustre/home/vira9982/Gene_Origin/databases/bakta_db"
   type: "light"
+  update: false
   threads: 8
 
 abricate:
   mincov: 50
   minid: 50
+
+eggnog:
+  db: "/scratch/lustre/home/vira9982/Gene_Origin/databases/eggnog_db"
+
