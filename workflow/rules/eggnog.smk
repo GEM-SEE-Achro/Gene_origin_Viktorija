@@ -16,7 +16,7 @@ rule eggnog_mapper:
     input:
         db = os.path.join(config["eggnog"]["db"], "eggnog.db"),
         dmnd = os.path.join(config["eggnog"]["db"], "eggnog_proteins.dmnd"),
-        fasta = config["input"]
+        faa = "results/bakta/bakta.faa"
     output:
         hits = "results/eggnog/eggnog.emapper.hits",
         seed = "results/eggnog/eggnog.emapper.seed_orthologs",
@@ -29,8 +29,8 @@ rule eggnog_mapper:
     threads: 8
     shell:
         """
-        emapper.py -i {input.fasta} -o {params.prefix} --data_dir {params.eggnog_db} \
-            -m diamond --itype genome --cpu {threads} 
+        emapper.py -i {input.faa} -o {params.prefix} --data_dir {params.eggnog_db} \
+            -m diamond --itype proteins --cpu {threads}
         """
 
 

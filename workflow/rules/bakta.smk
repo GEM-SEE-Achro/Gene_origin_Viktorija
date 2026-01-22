@@ -39,7 +39,8 @@ rule bakta:
         update_flag = "database_update.done" if config["bakta"]["update"] else []
     output:
         dir = directory("results/bakta"),
-        gff = "results/bakta/bakta.gff3"
+        gff = "results/bakta/bakta.gff3",
+        faa = "results/bakta/bakta.faa"
     threads:
         config["bakta"]["threads"]
     log:
