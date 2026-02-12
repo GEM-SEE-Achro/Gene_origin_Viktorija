@@ -9,5 +9,17 @@ rule extract_cog:
         "../envs/py.yaml"
     shell:
         """
-        ./scripts/extract_COGV.py {input.bakta_tsv} {input.eggnog_tsv} {input.input_fasta} {output.output_fasta}
+        python ./scripts/extract_COGV.py {input.bakta_tsv} {input.eggnog_tsv} {input.input_fasta} {output.output_fasta}
+        """
+
+rule run_metagraph:
+    input:
+        cogv = "results/metagraph/extracted_cog.fasta"
+    output:
+        res = "results/metagraph/metagraph_matches.json"
+    conda:
+        "../envs/py.yaml"
+    shell:
+        """
+        python ./scripts/run_metagraph.py {input.cogv} {output.res}
         """

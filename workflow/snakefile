@@ -9,8 +9,8 @@ rule all:
         #"results/eggnog/eggnog.emapper.hits",
         #"results/eggnog/eggnog.emapper.seed_orthologs",
         #"results/eggnog/eggnog.emapper.annotations"
-        "results/metagraph/extracted_cog.fasta"
-
+        #"results/metagraph/extracted_cog.fasta"
+        "results/metagraph/metagraph_matches.json"
 
 include: "rules/bakta.smk"
 
