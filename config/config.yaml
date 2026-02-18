@@ -12,7 +12,12 @@ bakta:
 abricate:
   mincov: 50
   minid: 50
+  threads: 8
 
 eggnog:
   db: "/scratch/lustre/home/vira9982/Gene_Origin/databases/eggnog_db"
+  threads: 8
+
+metagraph:
+  threads: 8
 
