@@ -17,6 +17,8 @@ rule run_metagraph:
         cogv = "results/metagraph/extracted_cog.fasta"
     output:
         res = "results/metagraph/metagraph_matches.json"
+    threads:
+        config["metagraph"]["threads"]
     conda:
         "../envs/py.yaml"
     shell:

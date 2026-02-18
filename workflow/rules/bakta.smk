@@ -36,11 +36,13 @@ rule bakta:
             "db-light" if config["bakta"]["type"] == "light" else "db",
             "bakta.db"),
         fasta = config["input"],
-        update_flag = "database_update.done" if config["bakta"]["update"] else []
+        update_flag = "database_update.done" if config["bakta"]["update"] else [],
+        check_flag = "results/pass_checks.done"
     output:
         dir = directory("results/bakta"),
         gff = "results/bakta/bakta.gff3",
-        faa = "results/bakta/bakta.faa"
+        faa = "results/bakta/bakta.faa",
+        tsv = "results/bakta/bakta.tsv"
     threads:
         config["bakta"]["threads"]
     log:

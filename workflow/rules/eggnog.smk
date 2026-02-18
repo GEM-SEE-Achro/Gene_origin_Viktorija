@@ -21,6 +21,8 @@ rule eggnog_mapper:
         hits = "results/eggnog/eggnog.emapper.hits",
         seed = "results/eggnog/eggnog.emapper.seed_orthologs",
         annotation = "results/eggnog/eggnog.emapper.annotations"
+    threads:
+        config["eggnog"]["threads"]
     params:
         eggnog_db = config["eggnog"]["db"],
         prefix = "results/eggnog/eggnog"

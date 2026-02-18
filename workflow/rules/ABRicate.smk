@@ -1,8 +1,11 @@
 rule abricate_AMRFinderPlus:
     input:
-        fasta = config["input"]
+        fasta = config["input"],
+        check_flag = "results/pass_checks.done"
     output:
         tab = "results/abricate/abricate_AMRFinderPlus.tab"
+    threads:
+        config["abricate"]["threads"]
     log:
         "Logs/abricate.log"
     conda:
@@ -17,9 +20,12 @@ rule abricate_AMRFinderPlus:
 
 rule abricate_CARD:
     input:
-        fasta = config["input"]
+        fasta = config["input"],
+        check_flag = "results/pass_checks.done"
     output:
         tab = "results/abricate/abricate_CARD.tab"
+    threads:
+        config["abricate"]["threads"]
     log:
         "Logs/abricate.log"
     conda:
@@ -34,9 +40,12 @@ rule abricate_CARD:
 
 rule abricate_Resfinder:
     input:
-        fasta = config["input"]
+        fasta = config["input"],
+        check_flag = "results/pass_checks.done"
     output:
         tab = "results/abricate/abricate_Resfinder.tab"
+    threads:
+        config["abricate"]["threads"]
     log:
         "Logs/abricate.log"
     conda:
