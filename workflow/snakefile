@@ -12,7 +12,8 @@ rule all:
         "results/eggnog/eggnog.emapper.seed_orthologs",
         "results/eggnog/eggnog.emapper.annotations",
         "results/metagraph/extracted_cog.fasta",
-        "results/metagraph/metagraph_matches.json"
+        "results/metagraph/metagraph_matches.json",
+        "results/reports/report.html"
 
 include: "rules/input_check.smk"
 
@@ -23,3 +24,5 @@ include: "rules/ABRicate.smk"
 include: "rules/eggnog.smk"
 
 include: "rules/metagraph.smk"
+
+include: "rules/generate_report.smk"

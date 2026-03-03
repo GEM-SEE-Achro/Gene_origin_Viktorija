@@ -1,0 +1,12 @@
+name: r_report
+channels:
+  - conda-forge
+dependencies:
+  - r-base>=4.3
+  - r-tidyverse
+  - r-rmarkdown
+  - r-knitr
+  - r-dt
+  - r-plotly
+  - pandoc
+  - r-gggenes

@@ -1,0 +1,179 @@
+---
+title: "Gene Origin Report"
+author: "Viktorija Ramonaite"
+date: "`r Sys.Date()`"
+output:
+    html_document:
+        toc: true
+        toc_float: true
+        theme: united
+        highlight: pygments
+        df_print: paged
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = FALSE,
+  message = FALSE,
+  warning = FALSE,
+  fig.width = 10,
+  fig.height = 6
+)
+
+library(tidyverse)
+library(DT)
+library(knitr)
+library(plotly)
+library(gggenes)
+```
+
+```{r load data}
+lines <- readLines(snakemake@input[["bakta_tsv"]])
+header_line <- grep("^#Sequence", lines)
+bakta_tsv <- read_tsv(
+    paste(lines[header_line:length(lines)], collapse = "\n"),
+    col_names = TRUE
+) %>%
+    rename_with(~ str_remove(., "^#"))
+
+bakta_txt <- readLines(snakemake@input[["bakta_txt"]])
+get_val <- function(key) {
+  line <- grep(paste0("^\\s*", key, ":"), bakta_txt, value = TRUE)
+  trimws(sub(".*:\\s*", "", line))
+}
+
+genome_length <- get_val("Length")
+gc_content <- get_val("GC")
+coding_density <- get_val("coding density")
+n_trna        <- get_val("tRNAs")
+n_tmrna        <- get_val("tmRNAs")
+n_rrna        <- get_val("rRNAs")
+n_ncrna        <- get_val("ncRNAs")
+n_cds         <- get_val("CDSs")
+n_pseudogenes <- get_val("pseudogenes")
+n_hypothetical <- get_val("hypotheticals")
+n_sorf <- get_val("sORFs")
+n_orics <- get_val("oriCs")
+n_orivs <- get_val("oriVs")
+n_orits <- get_val("oriTs")
+bakta_version <- get_val("Software")
+db_version    <- get_val("Database")
+
+ann_lines <- readLines(snakemake@input[["eggnog_annotations"]])
+ann_header <- grep("^#query", ann_lines)
+eggnog_ann <- read_tsv(
+    paste(ann_lines[ann_header:length(ann_lines)], collapse = "\n"),
+    comment = "##",
+    col_names = TRUE
+) %>%
+    rename(query = `#query`)
+
+orth_lines <- readLines(snakemake@input[["eggnog_orthologs"]])
+orth_header <- grep("^#qseqid", orth_lines)
+eggnog_orth <- read_tsv(
+    paste(orth_lines[orth_header:length(orth_lines)], collapse = "\n"),
+    comment = "##",
+    col_names = TRUE
+) %>%
+    rename(query = `#qseqid`)
+
+eggnog_combined <- eggnog_ann %>%
+    left_join(
+        eggnog_orth %>% select(query, sseqid, pident, qcov, scov),
+        by = c("query", "seed_ortholog" = "sseqid")
+    )
+```
+
+## Bakta results {.tabset .tabset-fade .tabset-pills}
+
+### Overview
+
+Using Bakta version `r bakta_version` with database version `r db_version`.
+
+```{r bakta_overview}
+tibble(
+    Feature = c("Genome length", "GC content", "Coding density", "tRNAs", 
+        "tmRNAs", "rRNAs", "ncRNAs", "CDSs", "Pseudogenes", 
+        "Hypothetical proteins", "sORFs", "oriCs", "oriVs", "oriTs"),
+    Value = c(genome_length, gc_content, coding_density, n_trna, n_tmrna,
+        n_rrna, n_ncrna, n_cds, n_pseudogenes, n_hypothetical, n_sorf, 
+        n_orics, n_orivs, n_orits)
+) %>%
+    datatable(
+        caption = "Bakta genome annotation summary",
+        filter   = "none",
+        options  = list(pageLength = 20, dom = "t"),
+        rownames = FALSE,
+        class    = "cell-border stripe hover"
+    )
+```
+
+### Gene annotation
+
+```{r bakta_genes}
+bakta_tsv %>%
+    select(`Sequence Id`, `Locus Tag`, Type, Gene, Product) %>%
+    datatable(
+        caption = "Bakta gene annotation",
+        filter   = "top",
+        extensions = "Buttons",
+        options  = list(
+            pageLength = 20,
+            dom = "Blfrtip",
+            buttons = c("copy", "csv","pdf"),
+            scrollX = TRUE
+        ),
+        class    = "display"
+    )
+```
+
+## EggNOG results
+
+```{r eggnog_tabel}
+eggnog_combined %>%
+    select(query, seed_ortholog, pident, qcov, scov, COG_category, Description) %>%
+    datatable(
+        caption = "EggNOG annotations",
+        filter   = "top",
+        extensions = "Buttons",
+        options  = list(
+            pageLength = 20,
+            dom = "Blfrtip",
+            buttons = c("copy", "csv","pdf"),
+            scrollX = TRUE
+        ),
+        class    = "display"
+    )
+```
+
+## Gene Map
+
+```{r gene_map_setup}
+window_size <- 50000
+
+gene_data <- bakta_tsv %>%
+  filter(Type == "cds") %>%
+  mutate(
+    forward = Strand == "+",
+    label = coalesce(Gene, `Locus Tag`),
+    window_num = floor(Start / window_size),
+    sequence_part = paste0(
+      format(window_num * window_size, big.mark = ","), " – ",
+      format((window_num + 1) * window_size, big.mark = ","), " bp"
+    ),
+    sequence_part = reorder(sequence_part, window_num)
+  )
+
+n_windows <- length(unique(gene_data$sequence_part))
+plot_height <- min(n_windows * 0.8, 60)
+```
+```{r gene_map, fig.height=plot_height, fig.width=10}
+ggplot(gene_data, aes(xmin = Start, xmax = Stop, y = sequence_part,
+                       fill = label, forward = forward)) +
+  geom_gene_arrow() +
+  facet_wrap(~ sequence_part, scales = "free", ncol = 1) +
+  theme_genes() +
+  theme(legend.position = "none") +
+  labs(x = "Position (bp)", y = NULL)
+```
+
