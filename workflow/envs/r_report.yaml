@@ -10,3 +10,4 @@ dependencies:
   - r-plotly
   - pandoc
   - r-gggenes
+  - r-kableextra

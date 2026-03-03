@@ -25,6 +25,7 @@ library(DT)
 library(knitr)
 library(plotly)
 library(gggenes)
+library(kableExtra)
 ```
 
 ```{r load data}
@@ -82,6 +83,10 @@ eggnog_combined <- eggnog_ann %>%
         eggnog_orth %>% select(query, sseqid, pident, qcov, scov),
         by = c("query", "seed_ortholog" = "sseqid")
     )
+
+abricate_summary <- read_tsv(snakemake@input[["abricate_summary"]], comment = "") %>%
+    mutate(`#FILE` = str_extract(`#FILE`, "abricate_(\\w+)\\.tab", group = 1)) %>%
+    rename(Database = `#FILE`)
 ```
 
 ## Bakta results {.tabset .tabset-fade .tabset-pills}
@@ -177,3 +182,31 @@ ggplot(gene_data, aes(xmin = Start, xmax = Stop, y = sequence_part,
   labs(x = "Position (bp)", y = NULL)
 ```
 
+## ABRicate results {.tabset .tabset-fade .tabset-pills}
+
+### Overview
+
+```{r abricate_overview}
+abricate_summary %>%
+    ggplot(aes(x = reorder(Database, NUM_FOUND), y = NUM_FOUND, fill = Database)) +
+    geom_col() +
+    geom_text(aes(label = NUM_FOUND), hjust = -0.2) +
+    coord_flip() +
+    theme_minimal() +
+    theme(legend.position = "none") +
+    labs(x = NULL, y = "AMR genes detected")
+```
+
+### AMR genes
+
+```{r abricate_genes}
+abricate_summary %>%
+    select(-NUM_FOUND) %>%
+    kable(caption = "AMR genes detected by each database (% coverage)") %>%
+    kableExtra::kable_styling(
+        bootstrap_options = c("striped", "hover", "condensed"),
+        full_width = TRUE,
+        font_size = 12
+    ) %>%
+    kableExtra::scroll_box(width = "100%")
+```
