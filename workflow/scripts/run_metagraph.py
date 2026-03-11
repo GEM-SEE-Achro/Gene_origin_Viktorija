@@ -19,20 +19,19 @@ def query_metagraph(sequence, sequence_id):
         "https://metagraph.ethz.ch:8081/search",
         json={
             "queries": [
-                {
-                    "db": "sra-microbe",
-                    "q": sequence,
-                },
-                {
-                    "db": "refseq85_coord",
-                    "q": sequence,
-                },
+                {"db": "sra-microbe", "q": sequence},
+                {"db": "refseq85_coord", "q": sequence},
             ],
             "search_name": f"{sequence_id} search"
         },
     )
 
+    print(f"  {sequence_id}: HTTP {response.status_code}")
     response_data = response.json()
+
+    if "search_id" not in response_data:
+        print(f"  Response: {json.dumps(response_data)[:300]}")
+        raise RuntimeError(f"No search_id in response for {sequence_id}")
     
     return response_data["search_id"]
 
