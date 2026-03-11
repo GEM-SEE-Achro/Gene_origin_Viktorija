@@ -5,10 +5,10 @@ from Bio import SeqIO
 from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
 
-bakta_tsv = sys.argv[1]
-eggnog_tsv = sys.argv[2]
-fasta_input = sys.argv[3]
-fasta_output = sys.argv[4]
+bakta_tsv = snakemake.input.bakta_tsv
+eggnog_tsv = snakemake.input.eggnog_tsv
+fasta_input = snakemake.input.input_fasta
+fasta_output = snakemake.output.output_fasta
 
 cogv_v_id = set()
 

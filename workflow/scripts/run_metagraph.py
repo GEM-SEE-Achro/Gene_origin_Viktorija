@@ -5,8 +5,8 @@ from Bio import SeqIO
 import sys
 import json
 
-fasta_file = sys.argv[1]
-output_file = sys.argv[2]
+fasta_file = snakemake.input.cogv
+output_file = snakemake.output.res
 
 sequences = []
 sequences_ids = []
