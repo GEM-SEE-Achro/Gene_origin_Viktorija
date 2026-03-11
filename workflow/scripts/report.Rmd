@@ -1,13 +1,14 @@
 ---
 title: "Gene Origin Report"
-author: "Viktorija Ramonaite"
+author: "Made by Viktorija Ramonaite"
 date: "`r Sys.Date()`"
 output:
     html_document:
         toc: true
-        toc_float: true
+        toc_float:
+            collapsed: true
         theme: united
-        highlight: pygments
+        highlight: default
         df_print: paged
 ---
 
@@ -16,7 +17,7 @@ knitr::opts_chunk$set(
   echo = FALSE,
   message = FALSE,
   warning = FALSE,
-  fig.width = 10,
+  fig.width = 12,
   fig.height = 6
 )
 
@@ -26,9 +27,12 @@ library(knitr)
 library(plotly)
 library(gggenes)
 library(kableExtra)
+library(jsonlite)
 ```
 
+# Getting the data for the report
 ```{r load data}
+#Bakta
 lines <- readLines(snakemake@input[["bakta_tsv"]])
 header_line <- grep("^#Sequence", lines)
 bakta_tsv <- read_tsv(
@@ -43,10 +47,10 @@ get_val <- function(key) {
   trimws(sub(".*:\\s*", "", line))
 }
 
-genome_length <- get_val("Length")
-gc_content <- get_val("GC")
-coding_density <- get_val("coding density")
-n_trna        <- get_val("tRNAs")
+genome_length <- paste0(get_val("Length"), " bp")
+gc_content <- paste0(get_val("GC"), " %")
+coding_density <- paste0(get_val("coding density"), " %")
+n_trna        <- get_val("tRNAs") 
 n_tmrna        <- get_val("tmRNAs")
 n_rrna        <- get_val("rRNAs")
 n_ncrna        <- get_val("ncRNAs")
@@ -60,7 +64,10 @@ n_orits <- get_val("oriTs")
 bakta_version <- get_val("Software")
 db_version    <- get_val("Database")
 
+#EggNOG
 ann_lines <- readLines(snakemake@input[["eggnog_annotations"]])
+emapper_version <- grep("^## emapper", ann_lines, value = TRUE) %>%
+    str_extract("emapper-[\\d\\.]+-\\w+")
 ann_header <- grep("^#query", ann_lines)
 eggnog_ann <- read_tsv(
     paste(ann_lines[ann_header:length(ann_lines)], collapse = "\n"),
@@ -69,7 +76,7 @@ eggnog_ann <- read_tsv(
 ) %>%
     rename(query = `#query`)
 
-orth_lines <- readLines(snakemake@input[["eggnog_orthologs"]])
+orth_lines <- readLines(snakemake@input[["eggnog_orthologs"]]) 
 orth_header <- grep("^#qseqid", orth_lines)
 eggnog_orth <- read_tsv(
     paste(orth_lines[orth_header:length(orth_lines)], collapse = "\n"),
@@ -84,16 +91,89 @@ eggnog_combined <- eggnog_ann %>%
         by = c("query", "seed_ortholog" = "sseqid")
     )
 
+#ABRicate
 abricate_summary <- read_tsv(snakemake@input[["abricate_summary"]], comment = "") %>%
     mutate(`#FILE` = str_extract(`#FILE`, "abricate_(\\w+)\\.tab", group = 1)) %>%
     rename(Database = `#FILE`)
+
+abricate_hits <- map_dfr(
+    c(snakemake@input[["abricate_ncbi"]], 
+        snakemake@input[["abricate_card"]], 
+        snakemake@input[["abricate_resfinder"]]),
+    function(f) {
+        db_name <- str_extract(basename(f), "abricate_(\\w+)\\.tab", group = 1)
+        read_tsv(f) %>% mutate(source_db = db_name)
+    }
+)
+
+abricate_mincov <- snakemake@params[["abricate_mincov"]]
+abricate_minid  <- snakemake@params[["abricate_minid"]]
+
+#Metagraph
+metagraph_raw <- fromJSON(snakemake@input[["metagraph"]], simplifyVector = FALSE)
+
+metagraph_top <- map_dfr(metagraph_raw, function(entry) {
+    querry <- entry$query_id
+    results <- entry$raw_results$results
+
+    if (length(results) == 0) {
+        return(
+            tibble(
+                query = querry,
+                sequence_id = NA_character_,
+                organism = NA_character_,
+                normalized_score = NA_real_,
+                database = NA_character_,
+                geo_loc_name = NA_character_,
+                sequence_url = NA_character_,
+                biosample = NA_character_
+            )
+        )
+    }
+
+    scores <- sapply(results, function(r) r$table_data$normalized_score)
+    top <- results[[which.max(scores)]]
+
+    tibble(
+        query = querry,
+        sequence_id = top$table_data$sequence_id,
+        organism = top$table_data$organism,
+        normalized_score = top$table_data$normalized_score,
+        database = top$table_data$database,
+        geo_loc_name = top$enrichment$geo_loc_name,
+        sequence_url = top$table_data$sequence_url,
+        biosample = top$table_data$biosample
+    )
+})
+
+metagraph_all <- map_dfr(metagraph_raw, function(entry) {
+    querry <- entry$query_id
+    results <- entry$raw_results$results
+    if (length(results) == 0) return(NULL)
+
+    map_dfr(results, function(result) {
+        tibble(
+            query = querry,
+            sequence_id = result$table_data$sequence_id,
+            organism = result$table_data$organism,
+            normalized_score = result$table_data$normalized_score,
+            database = result$table_data$database,
+            geo_loc_name = result$enrichment$geo_loc_name,
+            sequence_url = result$table_data$sequence_url,
+            biosample = result$table_data$biosample
+        )
+    })
+})
 ```
 
 ## Bakta results {.tabset .tabset-fade .tabset-pills}
 
-### Overview
-
+Bakta was used for bacterial genome annotation, identifying genomic features such as coding sequences (CDSs), tRNAs, rRNAs, and other non-coding RNAs.
 Using Bakta version `r bakta_version` with database version `r db_version`.
+
+### Overview
+ 
+The following table summarizes the key features of the annotated genome.
 
 ```{r bakta_overview}
 tibble(
@@ -115,6 +195,8 @@ tibble(
 
 ### Gene annotation
 
+The following table lists the annotated genes, including their sequence ID, locus tag, type, gene name (if available), and product description.
+
 ```{r bakta_genes}
 bakta_tsv %>%
     select(`Sequence Id`, `Locus Tag`, Type, Gene, Product) %>%
@@ -134,6 +216,11 @@ bakta_tsv %>%
 
 ## EggNOG results
 
+EggNOG-mapper was used for functional annotation of predicted protein sequences from Bakta, assigning orthologous groups and COG functional categories.
+Selected columns from eggNOG-mapper output include query identifier, seed ortholog, alignment metrics (percent identity, query and subject coverage), 
+COG functional category, and functional description.
+Using EggNOG-mapper version `r emapper_version`.
+
 ```{r eggnog_tabel}
 eggnog_combined %>%
     select(query, seed_ortholog, pident, qcov, scov, COG_category, Description) %>%
@@ -151,53 +238,12 @@ eggnog_combined %>%
     )
 ```
 
-## Gene Map
+## AMR genes
 
-```{r gene_map_setup}
-window_size <- 50000
-
-gene_data <- bakta_tsv %>%
-  filter(Type == "cds") %>%
-  mutate(
-    forward = Strand == "+",
-    label = coalesce(Gene, `Locus Tag`),
-    window_num = floor(Start / window_size),
-    sequence_part = paste0(
-      format(window_num * window_size, big.mark = ","), " – ",
-      format((window_num + 1) * window_size, big.mark = ","), " bp"
-    ),
-    sequence_part = reorder(sequence_part, window_num)
-  )
-
-n_windows <- length(unique(gene_data$sequence_part))
-plot_height <- min(n_windows * 0.8, 60)
-```
-```{r gene_map, fig.height=plot_height, fig.width=10}
-ggplot(gene_data, aes(xmin = Start, xmax = Stop, y = sequence_part,
-                       fill = label, forward = forward)) +
-  geom_gene_arrow() +
-  facet_wrap(~ sequence_part, scales = "free", ncol = 1) +
-  theme_genes() +
-  theme(legend.position = "none") +
-  labs(x = "Position (bp)", y = NULL)
-```
-
-## ABRicate results {.tabset .tabset-fade .tabset-pills}
-
-### Overview
-
-```{r abricate_overview}
-abricate_summary %>%
-    ggplot(aes(x = reorder(Database, NUM_FOUND), y = NUM_FOUND, fill = Database)) +
-    geom_col() +
-    geom_text(aes(label = NUM_FOUND), hjust = -0.2) +
-    coord_flip() +
-    theme_minimal() +
-    theme(legend.position = "none") +
-    labs(x = NULL, y = "AMR genes detected")
-```
-
-### AMR genes
+ABRicate was used to screen the assembled genome against multiple antimicrobial resistance gene databases, 
+including NCBI AMRFinderPlus, CARD, and Resfinder. Genes were identified based on nucleotide sequence 
+similarity with minimum coverage of `r abricate_mincov`% and minimum identity of `r abricate_minid`%. 
+The summary table shows the presence of detected resistance genes across all screened databases.
 
 ```{r abricate_genes}
 abricate_summary %>%
@@ -209,4 +255,218 @@ abricate_summary %>%
         font_size = 12
     ) %>%
     kableExtra::scroll_box(width = "100%")
+```
+
+## Gene Map
+
+Annotated genes from Bakta were visualised as gene arrow maps using the gggenes R package. 
+The given sequence was divided into 30 kb windows to improve readability, with each window displayed as a separate panel.
+Arrow direction indicates the coding strand.
+Coloring highlights genes that are either AMR-related (based on ABRicate hits), COG category V (defense mechanisms), or both.
+
+```{r gene_map_setup}
+cog_v_genes <- unique(metagraph_top$query)
+
+amr_gene_names <- abricate_summary %>%
+    select(-Database, -NUM_FOUND) %>%
+    names()
+
+is_amr_gene <- function(gene, product, amr_names) {
+    gene_l <- tolower(gene)
+    product_l <- tolower(product)
+    any(sapply(tolower(amr_names), function(a) {
+        grepl(a, gene_l, fixed = TRUE) | grepl(a, product_l, fixed = TRUE)
+    }))
+}
+
+window_size <- 30000
+windows_per_plot <- 40
+
+gene_data <- bakta_tsv %>%
+    mutate(
+        forward = Strand == "+",
+        is_cog_v = `Locus Tag` %in% cog_v_genes,
+        is_amr = map2_lgl(Start, Stop, function(s, e) {
+            any(abricate_hits$START < e & abricate_hits$END > s)
+        }),
+        highlight = case_when(
+            is_amr & is_cog_v ~ "AMR + COG V",
+            is_amr            ~ "AMR gene",
+            is_cog_v          ~ "COG V (Defense)",
+            TRUE              ~ "Other"
+        ),
+        highlight = factor(highlight, 
+            levels = c("AMR + COG V", "AMR gene", "COG V (Defense)", "Other")),
+        label = case_when(
+            is_amr | is_cog_v ~ coalesce(Gene, `Locus Tag`),
+            TRUE              ~ NA_character_
+        ),
+        midpoint = (Start + Stop) / 2,
+        window_num = floor(midpoint / window_size),
+        plot_batch = floor(window_num / windows_per_plot) + 1,
+        molecule = paste0(
+            format(window_num * window_size / 1e6, nsmall = 1), " – ",
+            format((window_num + 1) * window_size / 1e6, nsmall = 1), " Mb"
+        ),
+        molecule = reorder(molecule, window_num)
+    )
+
+batches <- sort(unique(gene_data$plot_batch))
+
+highlight_colors <- c(
+    "AMR + COG V"     = "#FB8500",
+    "AMR gene"        = "#8ECAE6",
+    "COG V (Defense)" = "#1c7f97",
+    "Other"           = "#cccccc"
+)
+```
+```{r gene_map, results='asis', fig.height=32, fig.width=12}
+for (b in batches) {
+  batch_data <- gene_data %>% filter(plot_batch == b)
+  n_win <- length(unique(batch_data$molecule))
+  h <- max(n_win * 0.8, 3)
+
+  p <- ggplot(batch_data, aes(xmin = Start, xmax = Stop, y = molecule,
+    fill = highlight, forward = forward)) +
+    geom_gene_arrow(arrowhead_height = unit(4, "mm"), arrow_body_height = unit(3, "mm")) +
+    geom_gene_label(aes(label = label), align = "left", grow = FALSE, min.size = 0) +
+    facet_wrap(~ molecule, scales = "free", ncol = 1) +
+    scale_fill_manual(values = highlight_colors, name = NULL, drop = FALSE) +
+    theme_genes() +
+    theme(
+        strip.text = element_text(size = 12, margin = margin(1, 0, 1, 0)),
+        plot.text = element_text(size = 12),
+        legend.text = element_text(size = 12),
+        panel.spacing = unit(0.1, "lines")
+    ) +
+    labs(x = "Position (bp)", y = NULL)
+
+  cat(knitr::knit_child(text = c(
+    sprintf("```{r gene-map-%d, echo=FALSE, fig.height=%g, fig.width=12}", b, h),
+    "print(p)",
+    "```"
+  ), envir = environment(), quiet = TRUE))
+  cat("\n\n")
+}
+```
+
+## Metagraph results
+
+MetaGraph was used to query COG category V (defense mechanism) gene sequences against a large-scale 
+sequence search index to identify the closest matching organisms. For each gene, the top hit was 
+selected based on the highest normalized alignment score. Results include the matched organism, 
+database source, geographic location of the sample, and sequence accession.
+
+### Overview {.tabset .tabset-fade .tabset-pills}
+
+#### Hits quality
+
+```{r metagraph_quality}
+metagraph_top %>%
+    filter(!is.na(normalized_score)) %>%
+    ggplot(aes(x = normalized_score)) +
+    geom_histogram(bins = 30, fill = "#219EBC", colour = "white", alpha = 0.8) +
+    scale_y_continuous(breaks = scales::breaks_pretty(n = 5), 
+        labels = function(x) format(x, big.mark = "", decimal.mark = "")) +
+    theme_minimal() +
+    theme(
+        panel.grid.minor = element_blank(),
+        plot.title = element_text(face = "bold")
+    ) +
+    labs(x = "Normalized score", y = "Number of genes",
+         title = "Distribution of top hit scores")
+```
+
+#### Top organisms
+
+```{r metagraph_organisms}
+organism_stats <- metagraph_all %>%
+    filter(!is.na(organism)) %>%
+    group_by(organism) %>%
+    summarise(
+        n_genes = n_distinct(query),
+        n_hits = n(),
+        mean_score = mean(normalized_score),
+        .groups = "drop"
+    ) %>%
+    slice_max(n_genes, n = 15)
+
+ggplot(organism_stats, aes(x = reorder(organism, n_genes), y = n_genes, fill = mean_score)) +
+    geom_col() +
+    geom_text(aes(label = paste0(n_genes, " genes (", n_hits, " total hits)")), 
+        hjust = -0.05, size = 3) +
+    coord_flip() +
+    scale_fill_viridis_c(name = "Mean score", option = "plasma", limits = c(0, 1)) +
+    scale_y_continuous(expand = expansion(mult = c(0, 0.3)), breaks = scales::pretty_breaks()) +
+    theme_minimal() +
+    theme(
+        panel.grid.minor = element_blank(),
+        plot.title = element_text(face = "bold", size = 18),
+        plot.caption = element_text(size = 14, color = "grey40"),
+        plot.text = element_text(size = 16),
+        plot.subtitle = element_text(color = "grey40")
+    ) +
+    labs(x = NULL, y = "Number of distinct genes matched",
+         title = "Most common matched organisms",
+         subtitle = "Distinct genes matched and total hit count. Color indicates mean match score")
+```
+
+### Hits {.tabset .tabset-fade .tabset-pills}
+
+#### Top hits per gene
+
+```{r metagraph_top_hits}
+metagraph_top %>%
+    filter(!is.na(organism)) %>%
+    datatable(
+        caption = "Top Metagraph hits for each gene",
+        filter   = "top",
+        extensions = "Buttons",
+        options  = list(
+            pageLength = 20,
+            dom = "Blfrtip",
+            buttons = c("copy", "csv","pdf"),
+            scrollX = TRUE
+        ),
+        class    = "display"
+    )
+```
+
+#### All hits
+
+```{r metagraph_all_hits}
+metagraph_all %>%
+    filter(!is.na(organism)) %>%
+    arrange(query, desc(normalized_score)) %>%
+    datatable(
+        caption = "All Metagraph hits for each gene",
+        filter   = "top",
+        extensions = "Buttons",
+        options  = list(
+            pageLength = 20,
+            dom = "Blfrtip",
+            buttons = c("copy", "csv","pdf"),
+            scrollX = TRUE
+        ),
+        class    = "display"
+    )
+```
+
+#### No-hit genes
+
+```{r metagraph_no_hits}
+metagraph_top %>%
+    filter(is.na(organism)) %>%
+    datatable(
+        caption = "Genes with no Metagraph hits",
+        filter   = "top",
+        extensions = "Buttons",
+        options  = list(
+            pageLength = 20,
+            dom = "Blfrtip",
+            buttons = c("copy", "csv","pdf"),
+            scrollX = TRUE
+        ),
+        class    = "display"
+    )
 ```
