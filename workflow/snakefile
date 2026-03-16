@@ -2,13 +2,17 @@ import os
 
 configfile: "../config/config.yaml"
 
-INPUT_TYPE = config["input_type"]
-
 rule all:
     input:
-        "results/parsed_gff.txt"
+        "results/abricate/abricate_summary.tab",
+        "results/metagraph/metagraph_matches.json"
 
-if INPUT_TYPE == "gff":
-    include: "rules/process_gff.smk"
-elif INPUT_TYPE == "fasta":
-    include: "rules/process_fasta.smk"
+include: "rules/input_check.smk"
+
+include: "rules/bakta.smk"
+
+include: "rules/ABRicate.smk"
+
+include: "rules/eggnog.smk"
+
+include: "rules/metagraph.smk"

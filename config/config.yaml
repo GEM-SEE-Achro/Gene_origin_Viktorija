@@ -1,6 +1,23 @@
+# Input type and file path
 input_type: "fasta"
-input: "../../dataset_1/NC_000913.3_330958..437312.fa"
+input: "../../dataset_1/DES1.fa"
 
+# Path to the bakta database and parameters for bakta
 bakta:
-  db: "../../databases/db-light"
+  db: "/scratch/lustre/home/vira9982/Gene_Origin/databases/bakta_db"
+  type: "full"
+  update: false
   threads: 8
+
+abricate:
+  mincov: 50
+  minid: 50
+  threads: 8
+
+eggnog:
+  db: "/scratch/lustre/home/vira9982/Gene_Origin/databases/eggnog_db"
+  threads: 8
+
+metagraph:
+  threads: 8
+
