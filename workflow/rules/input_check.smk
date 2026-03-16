@@ -14,12 +14,5 @@ rule check_for_input:
         metagraph_threads = config["metagraph"]["threads"]
     conda:
         "../envs/py.yaml"
-    shell:
-        """
-        python ./scripts/input_check.py {params.input_type} {params.input_fasta} {params.bakta_db_type} \
-            {params.bakta_db_update} {params.bakta_db_threads} {params.abricate_mincov} \
-            {params.abricate_minid} {params.abricate_threads} {params.eggnog_threads} \
-            {params.metagraph_threads}
-
-        touch {output.pass_flag}
-        """
+    script:
+        "../scripts/input_check.py"

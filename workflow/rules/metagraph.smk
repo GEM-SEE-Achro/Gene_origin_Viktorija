@@ -7,10 +7,8 @@ rule extract_cog:
         output_fasta = "results/metagraph/extracted_cog.fasta"
     conda:
         "../envs/py.yaml"
-    shell:
-        """
-        python ./scripts/extract_COGV.py {input.bakta_tsv} {input.eggnog_tsv} {input.input_fasta} {output.output_fasta}
-        """
+    script:
+        "../scripts/extract_COGV.py"
 
 rule run_metagraph:
     input:
@@ -21,7 +19,5 @@ rule run_metagraph:
         config["metagraph"]["threads"]
     conda:
         "../envs/py.yaml"
-    shell:
-        """
-        python ./scripts/run_metagraph.py {input.cogv} {output.res}
-        """
+    script:
+        "../scripts/run_metagraph.py"

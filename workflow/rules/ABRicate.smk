@@ -1,68 +1,31 @@
-rule abricate_AMRFinderPlus:
-    input:
-        fasta = config["input"],
-        check_flag = "results/pass_checks.done"
-    output:
-        tab = "results/abricate/abricate_AMRFinderPlus.tab"
-    threads:
-        config["abricate"]["threads"]
-    log:
-        "Logs/abricate.log"
-    conda:
-        "../envs/abricate.yaml"
-    params:
-        mincov = config["abricate"]["mincov"],
-        minid = config["abricate"]["minid"]
-    shell:
-        """
-        abricate --db ncbi --mincov {params.mincov} --minid {params.minid} {input.fasta} > {output.tab}
-        """
+ABRICATE_DBS = {
+    "AMRFinderPlus" : "ncbi",
+    "CARD" : "card",
+    "Resfinder" : "resfinder"
+}
 
-rule abricate_CARD:
+rule abricate:
     input:
         fasta = config["input"],
         check_flag = "results/pass_checks.done"
     output:
-        tab = "results/abricate/abricate_CARD.tab"
+        tab = "results/abricate/abricate_{db}.tab"
     threads:
         config["abricate"]["threads"]
-    log:
-        "Logs/abricate.log"
     conda:
         "../envs/abricate.yaml"
     params:
+        db = lambda wc: ABRICATE_DBS[wc.db],
         mincov = config["abricate"]["mincov"],
         minid = config["abricate"]["minid"]
     shell:
         """
-        abricate --db card --mincov {params.mincov} --minid {params.minid} {input.fasta} > {output.tab}
-        """
-
-rule abricate_Resfinder:
-    input:
-        fasta = config["input"],
-        check_flag = "results/pass_checks.done"
-    output:
-        tab = "results/abricate/abricate_Resfinder.tab"
-    threads:
-        config["abricate"]["threads"]
-    log:
-        "Logs/abricate.log"
-    conda:
-        "../envs/abricate.yaml"
-    params:
-        mincov = config["abricate"]["mincov"],
-        minid = config["abricate"]["minid"]
-    shell:
-        """
-        abricate --db resfinder --mincov {params.mincov} --minid {params.minid} {input.fasta} > {output.tab}
+        abricate --db {params.db} --mincov {params.mincov} --minid {params.minid} {input.fasta} > {output.tab}
         """
 
 rule abricate_summary:
     input:
-        ncbi = "results/abricate/abricate_AMRFinderPlus.tab",
-        card = "results/abricate/abricate_CARD.tab",
-        resfinder = "results/abricate/abricate_Resfinder.tab"
+        tabs = expand("results/abricate/abricate_{db}.tab", db=ABRICATE_DBS.keys())
     output:
         summary = "results/abricate/abricate_summary.tab"
     log:
@@ -71,8 +34,5 @@ rule abricate_summary:
         "../envs/abricate.yaml"
     shell:
         """
-        abricate --summary \
-        {input.ncbi} \
-        {input.card} \
-        {input.resfinder} > {output.summary}
+        abricate --summary {input.tabs} > {output.summary}
         """
