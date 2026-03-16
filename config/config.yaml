@@ -1,6 +1,6 @@
 # Input type and file path
 input_type: "fasta"
-input: "../../dataset_1/DES1.fa"
+input: "../../dataset_1/DES_putative_plasmid_plasmids_contigs.fasta"
 
 # Path to the bakta database and parameters for bakta
 bakta:
