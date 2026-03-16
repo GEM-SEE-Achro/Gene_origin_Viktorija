@@ -299,7 +299,7 @@ gene_data <- bakta_tsv %>%
             levels = c("AMR + COG V", "AMR gene", "COG V (Defense)", "Other")),
         label = case_when(
             is_amr | is_cog_v ~ coalesce(Gene, `Locus Tag`),
-            TRUE              ~ NA_character_
+            TRUE              ~ coalesce(Gene, `Locus Tag`)
         ),
         midpoint = (Start + Stop) / 2,
         window_num = floor(midpoint / window_size),

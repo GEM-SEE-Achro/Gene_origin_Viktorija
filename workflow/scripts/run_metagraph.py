@@ -22,10 +22,26 @@ def query_metagraph(sequence, sequence_id):
                 {
                     "db": "sra-microbe",
                     "q": sequence,
+                    "params":  {
+                        "discovery_threshold" : 0.5,
+                        "min_exact_match" : 0.5
+                    }
                 },
                 {
-                    "db": "refseq85_coord",
+                    "db": "refseq33m",
                     "q": sequence,
+                    "params":  {
+                        "discovery_threshold" : 0.5,
+                        "min_exact_match" : 0.5
+                    }
+                },
+                {
+                    "db": "sra-all",
+                    "q": sequence,
+                    "params":  {
+                        "discovery_threshold" : 0.5,
+                        "min_exact_match" : 0.5
+                    }
                 },
             ],
             "search_name": f"{sequence_id} search"
