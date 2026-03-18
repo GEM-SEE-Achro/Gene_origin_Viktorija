@@ -5,6 +5,8 @@ from Bio import SeqIO
 import sys
 import json
 
+import requests
+
 fasta_file = snakemake.input.cogv
 output_file = snakemake.output.res
 
@@ -36,11 +38,13 @@ def query_metagraph(sequence, sequence_id):
                     }
                 },
                 {
-                    "db": "sra-all",
+                    "db": "sra-logan-chunks",
                     "q": sequence,
                     "params":  {
                         "discovery_threshold" : 0.5,
-                        "min_exact_match" : 0.5
+                        "min_exact_match" : 0.5,
+                        "node_labels" : ["superkingdom_bacteria", "order_enterobacterales", "escherichia_coli", "salmonella_enterica",
+                                         "genus_klebsiella", "genus_mycobacterium", "metagenome", "metagenome_amp"]
                     }
                 },
             ],
