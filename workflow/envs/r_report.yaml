@@ -11,3 +11,5 @@ dependencies:
   - pandoc
   - r-gggenes
   - r-kableextra
+  - r-ggrepel
+  - r-ggiraph

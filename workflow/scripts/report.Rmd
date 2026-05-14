@@ -25,9 +25,12 @@ library(tidyverse)
 library(DT)
 library(knitr)
 library(plotly)
+library(crosstalk)
 library(gggenes)
 library(kableExtra)
 library(jsonlite)
+library(ggrepel)
+library(ggiraph)
 ```
 
 # Getting the data for the report
@@ -297,9 +300,10 @@ gene_data <- bakta_tsv %>%
         ),
         highlight = factor(highlight, 
             levels = c("AMR + COG V", "AMR gene", "COG V (Defense)", "Other")),
-        label = case_when(
-            is_amr | is_cog_v ~ coalesce(Gene, `Locus Tag`),
-            TRUE              ~ coalesce(Gene, `Locus Tag`)
+        tooltip = paste0(
+            "<b>", coalesce(Gene, "-"), "</b> (", `Locus Tag`, ")",
+            "<br>Type: ", Type,
+            "<br>Product: ", Product
         ),
         midpoint = (Start + Stop) / 2,
         window_num = floor(midpoint / window_size),
@@ -324,12 +328,18 @@ highlight_colors <- c(
 for (b in batches) {
   batch_data <- gene_data %>% filter(plot_batch == b)
   n_win <- length(unique(batch_data$molecule))
-  h <- max(n_win * 0.8, 3)
+  h <- max(n_win * 1.5, 4)
 
   p <- ggplot(batch_data, aes(xmin = Start, xmax = Stop, y = molecule,
     fill = highlight, forward = forward)) +
     geom_gene_arrow(arrowhead_height = unit(4, "mm"), arrow_body_height = unit(3, "mm")) +
-    geom_gene_label(aes(label = label), align = "left", grow = FALSE, min.size = 0) +
+    geom_rect_interactive(
+      aes(xmin = Start, xmax = Stop,
+          ymin = 0.6, ymax = 1.4,
+          tooltip = tooltip,
+          data_id = `Locus Tag`),
+      fill = "transparent", colour = "transparent"
+    ) +
     facet_wrap(~ molecule, scales = "free", ncol = 1) +
     scale_fill_manual(values = highlight_colors, name = NULL, drop = FALSE) +
     theme_genes() +
@@ -341,9 +351,19 @@ for (b in batches) {
     ) +
     labs(x = "Position (bp)", y = NULL)
 
+  widget <- girafe(
+    ggobj = p,
+    width_svg = 12, height_svg = h,
+    options = list(
+      opts_tooltip(css = "background:white;padding:8px;border-radius:4px;border:1px solid #ccc;font-size:12px;"),
+      opts_hover(css = "fill:orange;stroke:orange;opacity:0.5;"),
+      opts_sizing(rescale = TRUE, width = 1)
+    )
+  )
+
   cat(knitr::knit_child(text = c(
     sprintf("```{r gene-map-%d, echo=FALSE, fig.height=%g, fig.width=12}", b, h),
-    "print(p)",
+    "widget",
     "```"
   ), envir = environment(), quiet = TRUE))
   cat("\n\n")
@@ -380,6 +400,8 @@ metagraph_top %>%
 #### Top organisms
 
 ```{r metagraph_organisms}
+top_n_organism <- 20
+
 organism_stats <- metagraph_all %>%
     filter(!is.na(organism)) %>%
     group_by(organism) %>%
@@ -389,9 +411,47 @@ organism_stats <- metagraph_all %>%
         mean_score = mean(normalized_score),
         .groups = "drop"
     ) %>%
-    slice_max(n_genes, n = 15)
+    arrange(desc(n_genes)) %>%
+    mutate(organism = if_else(row_number() > top_n_organism, "Other", organism)) %>%
+    group_by(organism) %>%
+    summarise(
+        n_genes = sum(n_genes),
+        n_hits = sum(n_hits),
+        mean_score = mean(mean_score),
+        .groups = "drop"
+    ) %>%
+    arrange(desc(n_genes))
 
-ggplot(organism_stats, aes(x = reorder(organism, n_genes), y = n_genes, fill = mean_score)) +
+top_organisms <- organism_stats %>% filter(organism != "Other") %>% pull(organism)
+
+gene_details <- metagraph_all %>%
+    filter(!is.na(organism), organism %in% top_organisms) %>%
+    select(organism, query, normalized_score)
+
+shared_genes <- SharedData$new(gene_details, key = ~organism, group = "organism_link")
+shared_data <- SharedData$new(organism_stats %>% filter(organism != "Other"), key = ~organism, group = "organism_link")
+
+bscols(
+    widths = c(7, 5),
+    plot_ly(shared_data, x = ~n_genes, y = ~organism, type = "bar", orientation = "h",
+        color = ~mean_score, colors = c("#0D0887", "#5B02A3", "#9A179B", "#CB4678", "#EB7852", "#FBB32F", "#F0F921"),
+        text = ~paste0(n_genes, " genes (", n_hits, " hits)")) %>%
+        layout(
+            title = "Top matched organisms",
+            xaxis = list(title = "Number of distinct genes matched"),
+            yaxis = list(title = "", categoryorder = "total ascending"),
+            coloraxis = list(colorbar = list(title = "Mean score")),
+            dragmode = "select"
+        ),
+    datatable(shared_genes,
+        colnames = c("Organism", "Gene", "Score"),
+        options = list(pageLength = 15, scrollY = "400px"),
+        rownames = FALSE
+    )
+)
+
+ggplot(organism_stats %>% filter(organism != "Other"),
+    aes(x = reorder(organism, n_genes), y = n_genes, fill = mean_score)) +
     geom_col() +
     geom_text(aes(label = paste0(n_genes, " genes (", n_hits, " total hits)")), 
         hjust = -0.05, size = 3) +
