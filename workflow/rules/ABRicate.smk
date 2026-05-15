@@ -1,7 +1,8 @@
 ABRICATE_DBS = {
     "AMRFinderPlus" : "ncbi",
     "CARD" : "card",
-    "Resfinder" : "resfinder"
+    "Resfinder" : "resfinder",
+    "PlasmidFinder" : "plasmidfinder"
 }
 
 rule abricate:

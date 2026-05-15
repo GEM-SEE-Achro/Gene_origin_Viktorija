@@ -102,12 +102,16 @@ abricate_summary <- read_tsv(snakemake@input[["abricate_summary"]], comment = ""
 abricate_hits <- map_dfr(
     c(snakemake@input[["abricate_ncbi"]], 
         snakemake@input[["abricate_card"]], 
-        snakemake@input[["abricate_resfinder"]]),
+        snakemake@input[["abricate_resfinder"]],
+        snakemake@input[["abricate_plasmidfinder"]]),
     function(f) {
         db_name <- str_extract(basename(f), "abricate_(\\w+)\\.tab", group = 1)
         read_tsv(f) %>% mutate(source_db = db_name)
     }
 )
+
+abricate_hits_amr <- abricate_hits %>% filter(source_db != "PlasmidFinder")
+abricate_hits_plasmid <- abricate_hits %>% filter(source_db == "PlasmidFinder")
 
 abricate_mincov <- snakemake@params[["abricate_mincov"]]
 abricate_minid  <- snakemake@params[["abricate_minid"]]
@@ -271,17 +275,37 @@ eggnog_combined %>%
     )
 ```
 
-## AMR genes
+## ABRicate results {.tabset .tabset-fade .tabset-pills}
 
-ABRicate was used to screen the assembled genome against multiple antimicrobial resistance gene databases, 
-including NCBI AMRFinderPlus, CARD, and Resfinder. Genes were identified based on nucleotide sequence 
-similarity with minimum coverage of `r abricate_mincov`% and minimum identity of `r abricate_minid`%. 
-The summary table shows the presence of detected resistance genes across all screened databases.
+ABRicate was used to screen the assembled genome against multiple databases for antimicrobial resistance genes and plasmid replicons.
+Genes were identified based on nucleotide sequence similarity with minimum coverage of `r abricate_mincov`% and minimum identity of `r abricate_minid`%.
 
-```{r abricate_genes}
+### AMR genes
+
+The summary table shows the presence of detected resistance genes across AMR databases (NCBI AMRFinderPlus, CARD, Resfinder).
+
+```{r abricate_amr}
 abricate_summary %>%
+    filter(Database != "PlasmidFinder") %>%
     select(-NUM_FOUND) %>%
     kable(caption = "AMR genes detected by each database (% coverage)") %>%
+    kableExtra::kable_styling(
+        bootstrap_options = c("striped", "hover", "condensed"),
+        full_width = TRUE,
+        font_size = 12
+    ) %>%
+    kableExtra::scroll_box(width = "100%")
+```
+
+### Plasmid replicons
+
+PlasmidFinder was used to identify plasmid replicon sequences, enabling classification of plasmid incompatibility types present in the genome.
+
+```{r abricate_plasmid}
+abricate_summary %>%
+    filter(Database == "PlasmidFinder") %>%
+    select(-NUM_FOUND) %>%
+    kable(caption = "Plasmid replicons detected (% coverage)") %>%
     kableExtra::kable_styling(
         bootstrap_options = c("striped", "hover", "condensed"),
         full_width = TRUE,
@@ -347,7 +371,10 @@ gene_data <- bakta_tsv %>%
         forward = Strand == "+",
         is_cog_v = `Locus Tag` %in% cog_v_genes,
         is_amr = map2_lgl(Start, Stop, function(s, e) {
-            any(abricate_hits$START < e & abricate_hits$END > s)
+            any(abricate_hits_amr$START < e & abricate_hits_amr$END > s)
+        }),
+        is_plasmid_rep = map2_lgl(Start, Stop, function(s, e) {
+            any(abricate_hits_plasmid$START < e & abricate_hits_plasmid$END > s)
         }),
         is_viral = map2_lgl(Start, Stop, function(s, e) {
             any(genomad_regions$origin == "Virus" & 
@@ -363,12 +390,13 @@ gene_data <- bakta_tsv %>%
             is_amr & is_cog_v ~ "AMR + COG V",
             is_amr            ~ "AMR gene",
             is_cog_v          ~ "COG V (Defense)",
+            is_plasmid_rep    ~ "Plasmid replicon",
             is_viral          ~ "Viral",
             is_plasmid        ~ "Plasmid",
             TRUE              ~ "Other"
         ),
         highlight = factor(highlight, 
-            levels = c("AMR + COG V", "AMR gene", "COG V (Defense)", "Viral", "Plasmid", "Other")),
+            levels = c("AMR + COG V", "AMR gene", "COG V (Defense)", "Plasmid replicon", "Viral", "Plasmid", "Other")),
         tooltip = paste0(
             "<b>", coalesce(Gene, "-"), "</b> (", `Locus Tag`, ")",
             "<br>Type: ", Type,
@@ -390,6 +418,7 @@ highlight_colors <- c(
     "AMR + COG V"     = "#FB8500",
     "AMR gene"        = "#8ECAE6",
     "COG V (Defense)" = "#1c7f97",
+    "Plasmid replicon" ="#eb6bff",
     "Viral"           = "#E63946",
     "Plasmid"         = "#A855F7",
     "Other"           = "#cccccc"

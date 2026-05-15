@@ -10,6 +10,7 @@ rule generate_report:
         abricate_ncbi = "results/abricate/abricate_AMRFinderPlus.tab",
         abricate_card = "results/abricate/abricate_CARD.tab",
         abricate_resfinder = "results/abricate/abricate_Resfinder.tab",
+        abricate_plasmidfinder = "results/abricate/abricate_PlasmidFinder.tab",
         genomad_virus = f"results/genomad/{genomad_basename}_summary/{genomad_basename}_virus_summary.tsv",
         genomad_plasmid = f"results/genomad/{genomad_basename}_summary/{genomad_basename}_plasmid_summary.tsv",
         metagraph = "results/metagraph/metagraph_matches.json"
