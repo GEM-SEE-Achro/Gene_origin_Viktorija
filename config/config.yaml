@@ -18,6 +18,10 @@ eggnog:
   db: "/scratch/lustre/home/vira9982/Gene_Origin/databases/eggnog_db"
   threads: 8
 
+genomad:
+  db: "/scratch/lustre/home/vira9982/Gene_Origin/databases/genomad_db"
+  threads: 8
+
 metagraph:
   threads: 8
 

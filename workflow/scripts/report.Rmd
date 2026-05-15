@@ -112,6 +112,36 @@ abricate_hits <- map_dfr(
 abricate_mincov <- snakemake@params[["abricate_mincov"]]
 abricate_minid  <- snakemake@params[["abricate_minid"]]
 
+#GeNomad
+genomad_virus <- read_tsv(snakemake@input[["genomad_virus"]])
+genomad_plasmid <- read_tsv(snakemake@input[["genomad_plasmid"]])
+
+genomad_regions <- bind_rows(
+    if (nrow(genomad_virus) > 0) genomad_virus %>% 
+        mutate(origin = "Virus") %>%
+        select(seq_name, origin, coordinates, length, n_genes,
+            any_of(c("virus_score", "taxonomy"))) %>%
+        rename(score = virus_score),
+    if (nrow(genomad_plasmid) > 0) genomad_plasmid %>% 
+        mutate(origin = "Plasmid") %>%
+        select(seq_name, origin, coordinates, length, n_genes,
+            any_of(c("plasmid_score", "conjugation_genes", "amr_genes"))) %>%
+        rename(score = plasmid_score)
+)
+
+if (nrow(genomad_regions) > 0) {
+    genomad_regions <- genomad_regions %>%
+        separate(coordinates, into = c("genomad_start", "genomad_end"), 
+            sep = "-", convert = TRUE, remove = FALSE)
+} else {
+    genomad_regions <- tibble(
+        seq_name = character(), origin = character(),
+        coordinates = character(), length = integer(),
+        n_genes = integer(), score = numeric(),
+        genomad_start = integer(), genomad_end = integer()
+    )
+}
+
 #Metagraph
 metagraph_raw <- fromJSON(snakemake@input[["metagraph"]], simplifyVector = FALSE)
 
@@ -260,6 +290,33 @@ abricate_summary %>%
     kableExtra::scroll_box(width = "100%")
 ```
 
+## geNomad results
+
+geNomad was used to identify sequences of viral and plasmid origin in the assembled genome.
+The table below summarizes the detected mobile genetic element regions, including their predicted origin (virus or plasmid), genomic coordinates, length, number of genes, and confidence score.
+
+```{r genomad_results}
+if (nrow(genomad_regions) > 0) {
+    genomad_regions %>%
+        select(seq_name, origin, coordinates, length, n_genes, score, 
+            any_of(c("taxonomy", "conjugation_genes", "amr_genes"))) %>%
+        datatable(
+            caption = "geNomad detected regions",
+            filter = "top",
+            extensions = "Buttons",
+            options = list(
+                pageLength = 20,
+                dom = "Blfrtip",
+                buttons = c("copy", "csv", "pdf"),
+                scrollX = TRUE
+            ),
+            class = "display"
+        )
+} else {
+    cat("No viral or plasmid regions detected by geNomad.")
+}
+```
+
 ## Gene Map
 
 Annotated genes from Bakta were visualised as gene arrow maps using the gggenes R package. 
@@ -292,14 +349,26 @@ gene_data <- bakta_tsv %>%
         is_amr = map2_lgl(Start, Stop, function(s, e) {
             any(abricate_hits$START < e & abricate_hits$END > s)
         }),
+        is_viral = map2_lgl(Start, Stop, function(s, e) {
+            any(genomad_regions$origin == "Virus" & 
+                genomad_regions$genomad_start < e & 
+                genomad_regions$genomad_end > s)
+        }),
+        is_plasmid = map2_lgl(Start, Stop, function(s, e) {
+            any(genomad_regions$origin == "Plasmid" & 
+                genomad_regions$genomad_start < e & 
+                genomad_regions$genomad_end > s)
+        }),
         highlight = case_when(
             is_amr & is_cog_v ~ "AMR + COG V",
             is_amr            ~ "AMR gene",
             is_cog_v          ~ "COG V (Defense)",
+            is_viral          ~ "Viral",
+            is_plasmid        ~ "Plasmid",
             TRUE              ~ "Other"
         ),
         highlight = factor(highlight, 
-            levels = c("AMR + COG V", "AMR gene", "COG V (Defense)", "Other")),
+            levels = c("AMR + COG V", "AMR gene", "COG V (Defense)", "Viral", "Plasmid", "Other")),
         tooltip = paste0(
             "<b>", coalesce(Gene, "-"), "</b> (", `Locus Tag`, ")",
             "<br>Type: ", Type,
@@ -321,6 +390,8 @@ highlight_colors <- c(
     "AMR + COG V"     = "#FB8500",
     "AMR gene"        = "#8ECAE6",
     "COG V (Defense)" = "#1c7f97",
+    "Viral"           = "#E63946",
+    "Plasmid"         = "#A855F7",
     "Other"           = "#cccccc"
 )
 ```
