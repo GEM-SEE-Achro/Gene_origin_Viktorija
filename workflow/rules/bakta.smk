@@ -42,6 +42,7 @@ rule bakta:
         dir = directory("results/bakta"),
         gff = "results/bakta/bakta.gff3",
         faa = "results/bakta/bakta.faa",
+        fna = "results/bakta/bakta.fna",
         tsv = "results/bakta/bakta.tsv",
         txt = "results/bakta/bakta.txt"
     threads:
