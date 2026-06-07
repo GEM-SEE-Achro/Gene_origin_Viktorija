@@ -344,12 +344,20 @@ if (nrow(genomad_regions) > 0) {
 ## Gene Map
 
 Annotated genes from Bakta were visualised as gene arrow maps using the gggenes R package. 
-The given sequence was divided into 30 kb windows to improve readability, with each window displayed as a separate panel.
-Arrow direction indicates the coding strand.
-Coloring highlights genes that are either AMR-related (based on ABRicate hits), COG category V (defense mechanisms), or both.
+The given sequence was divided into 30 kb windows to improve readability, with each window displayed as a separate panel. 
+Arrow direction indicates the coding strand. Coloring highlights genes by their origin-related signal: AMR and resistance genes 
+(based on ABRicate hits), defense mechanisms (COG category V), mobilome genes such as prophages and transposons (COG category X), 
+plasmid regions (ABRicate replicons and geNomad), and prophage or viral regions (geNomad).
 
 ```{r gene_map_setup}
-cog_v_genes <- unique(metagraph_top$query)
+cog_v_genes <- union(
+    bakta_tsv %>% filter(str_detect(DbXrefs, "COG:V")) %>% pull(`Locus Tag`),
+    eggnog_combined %>% filter(str_detect(COG_category, "V")) %>% pull(query)
+)
+cog_x_genes <- union(
+    bakta_tsv %>% filter(str_detect(DbXrefs, "COG:X")) %>% pull(`Locus Tag`),
+    eggnog_combined %>% filter(str_detect(COG_category, "X")) %>% pull(query)
+)
 
 amr_gene_names <- abricate_summary %>%
     select(-Database, -NUM_FOUND) %>%
@@ -370,6 +378,7 @@ gene_data <- bakta_tsv %>%
     mutate(
         forward = Strand == "+",
         is_cog_v = `Locus Tag` %in% cog_v_genes,
+        is_cog_x = `Locus Tag` %in% cog_x_genes,
         is_amr = map2_lgl(Start, Stop, function(s, e) {
             any(abricate_hits_amr$START < e & abricate_hits_amr$END > s)
         }),
@@ -387,16 +396,15 @@ gene_data <- bakta_tsv %>%
                 genomad_regions$genomad_end > s)
         }),
         highlight = case_when(
-            is_amr & is_cog_v ~ "AMR + COG V",
-            is_amr            ~ "AMR gene",
-            is_cog_v          ~ "COG V (Defense)",
-            is_plasmid_rep    ~ "Plasmid replicon",
-            is_viral          ~ "Viral",
-            is_plasmid        ~ "Plasmid",
+            is_amr            ~ "AMR / resistance",
+            is_cog_v          ~ "Defense (COG V)",
+            is_cog_x          ~ "Mobilome (COG X)",
+            is_plasmid_rep | is_plasmid ~ "Plasmid",
+            is_viral          ~ "Prophage / viral",
             TRUE              ~ "Other"
         ),
         highlight = factor(highlight, 
-            levels = c("AMR + COG V", "AMR gene", "COG V (Defense)", "Plasmid replicon", "Viral", "Plasmid", "Other")),
+            levels = c("AMR / resistance", "Defense (COG V)", "Mobilome (COG X)", "Plasmid", "Prophage / viral", "Other")),
         tooltip = paste0(
             "<b>", coalesce(Gene, "-"), "</b> (", `Locus Tag`, ")",
             "<br>Type: ", Type,
@@ -415,13 +423,12 @@ gene_data <- bakta_tsv %>%
 batches <- sort(unique(gene_data$plot_batch))
 
 highlight_colors <- c(
-    "AMR + COG V"     = "#FB8500",
-    "AMR gene"        = "#8ECAE6",
-    "COG V (Defense)" = "#1c7f97",
-    "Plasmid replicon" ="#eb6bff",
-    "Viral"           = "#E63946",
-    "Plasmid"         = "#A855F7",
-    "Other"           = "#cccccc"
+    "AMR / resistance"     = "#FB8500",
+    "Defense (COG V)"      = "#1c7f97",
+    "Mobilome (COG X)"     = "#588157",
+    "Plasmid"              = "#A855F7",
+    "Prophage / viral"     = "#E63946",
+    "Other"                = "#cccccc"
 )
 ```
 ```{r gene_map, results='asis', fig.height=32, fig.width=12}
@@ -472,10 +479,11 @@ for (b in batches) {
 
 ## Metagraph results
 
-MetaGraph was used to query COG category V (defense mechanism) gene sequences against a large-scale 
-sequence search index to identify the closest matching organisms. For each gene, the top hit was 
-selected based on the highest normalized alignment score. Results include the matched organism, 
-database source, geographic location of the sample, and sequence accession.
+MetaGraph was used to query the selected origin-related gene set — comprising COG category V (defense mechanism) 
+and COG category X (mobilome) genes, together with AMR and plasmid genes identified by ABRicate and viral and plasmid genes 
+identified by geNomad — against a large-scale sequence search index to identify the closest matching organisms. 
+For each gene, the top hit was selected based on the highest normalized alignment score. 
+Results include the matched organism, database source, geographic location of the sample, and sequence accession.
 
 ### Overview {.tabset .tabset-fade .tabset-pills}
 

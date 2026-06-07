@@ -17,7 +17,9 @@ rule genomad:
         check_flag = "results/pass_checks.done"
     output:
         virus_summary = f"results/genomad/{genomad_basename}_summary/{genomad_basename}_virus_summary.tsv",
-        plasmid_summary = f"results/genomad/{genomad_basename}_summary/{genomad_basename}_plasmid_summary.tsv"
+        virus_genes = f"results/genomad/{genomad_basename}_summary/{genomad_basename}_virus_genes.tsv",
+        plasmid_summary = f"results/genomad/{genomad_basename}_summary/{genomad_basename}_plasmid_summary.tsv",
+        plasmid_genes = f"results/genomad/{genomad_basename}_summary/{genomad_basename}_plasmid_genes.tsv"
     params:
         outdir = "results/genomad"
     threads:
