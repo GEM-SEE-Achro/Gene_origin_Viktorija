@@ -12,7 +12,7 @@ rule genomad_db:
 
 rule genomad:
     input:
-        fasta = config["input"],
+        fna = "results/bakta/bakta.fna",
         db = config["genomad"]["db"],
         check_flag = "results/pass_checks.done"
     output:
@@ -21,12 +21,15 @@ rule genomad:
         plasmid_summary = f"results/genomad/{genomad_basename}_summary/{genomad_basename}_plasmid_summary.tsv",
         plasmid_genes = f"results/genomad/{genomad_basename}_summary/{genomad_basename}_plasmid_genes.tsv"
     params:
-        outdir = "results/genomad"
+        outdir = "results/genomad",
+        renamed = f"results/genomad/{genomad_basename}.fna"
     threads:
         config["genomad"]["threads"]
     conda:
         "../envs/genomad.yaml"
     shell:
         """
-        genomad end-to-end --cleanup --threads {threads} {input.fasta} {params.outdir} {input.db}
+        cp {input.fna} {params.renamed}
+        genomad end-to-end --cleanup --threads {threads} {params.renamed} {params.outdir} {input.db}
+        rm -f {params.renamed}
         """

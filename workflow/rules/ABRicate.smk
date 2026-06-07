@@ -7,7 +7,7 @@ ABRICATE_DBS = {
 
 rule abricate:
     input:
-        fasta = config["input"],
+        fna = "results/bakta/bakta.fna",
         check_flag = "results/pass_checks.done"
     output:
         tab = "results/abricate/abricate_{db}.tab"
@@ -21,7 +21,7 @@ rule abricate:
         minid = config["abricate"]["minid"]
     shell:
         """
-        abricate --db {params.db} --mincov {params.mincov} --minid {params.minid} {input.fasta} > {output.tab}
+        abricate --db {params.db} --mincov {params.mincov} --minid {params.minid} {input.fna} > {output.tab}
         """
 
 rule abricate_summary:
