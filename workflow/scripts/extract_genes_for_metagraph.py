@@ -5,6 +5,7 @@ from Bio import SeqIO
 from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
 
+# All the input files
 bakta_tsv = snakemake.input.bakta_tsv
 eggnog_tsv = snakemake.input.eggnog_tsv
 abricate_amr_tab = snakemake.input.abricate_amr_tab
@@ -55,7 +56,7 @@ def overlapping_locu_tags(seq_id, start, end):
     hits = sub[(sub['Start'] <= end) & (sub['Stop'] >= start)]
     return set(hits['Locus Tag'])
 
-# Gets the contig name from a gene name in genomad
+# Getting the contig name from a gene name in genomad
 def genomad_contig(gene_name):
     s = str(gene_name)
     if '|' in s:
@@ -90,6 +91,7 @@ selected_genes = bakta_df[bakta_df['Locus Tag'].isin(all_id)]
 input_sequence = SeqIO.read(fasta_input, 'fasta')
 output_records = []
 
+# Extracting sequences for the selected genes and writing to output fasta file
 for _, gene in selected_genes.iterrows():
     start = gene['Start'] - 1
     end = gene['Stop']

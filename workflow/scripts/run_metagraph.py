@@ -7,6 +7,7 @@ import json
 
 import requests
 
+# Input and output files
 fasta_file = snakemake.input.cogv
 output_file = snakemake.output.res
 
@@ -16,6 +17,8 @@ for record in SeqIO.parse(fasta_file, "fasta"):
     sequences.append(str(record.seq))
     sequences_ids.append(record.id)
 
+# Metagraph API interaction functions
+# Query Metagraph databases with a sequence and return the search_id
 def query_metagraph(sequence, sequence_id):
     response = requests.post(
         "https://metagraph.ethz.ch:8081/search",
@@ -61,6 +64,7 @@ def query_metagraph(sequence, sequence_id):
     
     return response_data["search_id"]
 
+# Monitor the search status until it is done, then return the final status
 def monitor_search(search_id):
     while True:
         try:
@@ -76,6 +80,7 @@ def monitor_search(search_id):
     
         time.sleep(5)
 
+# Get the results of a completed search
 def get_results(search_id):
     results = requests.get(
         f"https://metagraph.ethz.ch:8081/search/{search_id}/results",
@@ -85,6 +90,7 @@ def get_results(search_id):
 
 all_results = []
 
+# Main loop to process each sequence: submit search, monitor status, and retrieve results
 for i, (seq, seq_id) in enumerate(zip(sequences, sequences_ids), 1):
     try:
         search_id = query_metagraph(seq, seq_id)

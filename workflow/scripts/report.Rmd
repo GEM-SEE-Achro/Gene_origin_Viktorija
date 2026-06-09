@@ -12,6 +12,8 @@ output:
         df_print: paged
 ---
 
+Used R version: `r R.version.string`
+
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(
   echo = FALSE,
@@ -33,8 +35,9 @@ library(ggrepel)
 library(ggiraph)
 ```
 
-# Getting the data for the report
 ```{r load data}
+# Load and process data from Bakta, EggNOG-mapper, ABRicate, geNomad, and MetaGraph outputs.
+
 #Bakta
 lines <- readLines(snakemake@input[["bakta_tsv"]])
 header_line <- grep("^#Sequence", lines)
@@ -213,6 +216,7 @@ Using Bakta version `r bakta_version` with database version `r db_version`.
 The following table summarizes the key features of the annotated genome.
 
 ```{r bakta_overview}
+# Create a summary table of genome features and display it.
 tibble(
     Feature = c("Genome length", "GC content", "Coding density", "tRNAs", 
         "tmRNAs", "rRNAs", "ncRNAs", "CDSs", "Pseudogenes", 
@@ -235,6 +239,7 @@ tibble(
 The following table lists the annotated genes, including their sequence ID, locus tag, type, gene name (if available), and product description.
 
 ```{r bakta_genes}
+# Display the gene annotation table with interactive features for filtering and exporting.
 bakta_tsv %>%
     select(`Sequence Id`, `Locus Tag`, Type, Gene, Product) %>%
     datatable(
@@ -259,6 +264,7 @@ COG functional category, and functional description.
 Using EggNOG-mapper version `r emapper_version`.
 
 ```{r eggnog_tabel}
+# Display the EggNOG annotations with interactive features for filtering and exporting.
 eggnog_combined %>%
     select(query, seed_ortholog, pident, qcov, scov, COG_category, Description) %>%
     datatable(
@@ -285,6 +291,7 @@ Genes were identified based on nucleotide sequence similarity with minimum cover
 The summary table shows the presence of detected resistance genes across AMR databases (NCBI AMRFinderPlus, CARD, Resfinder).
 
 ```{r abricate_amr}
+# Display the summary of AMR genes detected by ABRicate, excluding plasmid replicons, with interactive features for filtering and exporting.
 abricate_summary %>%
     filter(Database != "PlasmidFinder") %>%
     select(-NUM_FOUND) %>%
@@ -302,6 +309,7 @@ abricate_summary %>%
 PlasmidFinder was used to identify plasmid replicon sequences, enabling classification of plasmid incompatibility types present in the genome.
 
 ```{r abricate_plasmid}
+# Display the summary of plasmid replicons detected by ABRicate, with interactive features for filtering and exporting.
 abricate_summary %>%
     filter(Database == "PlasmidFinder") %>%
     select(-NUM_FOUND) %>%
@@ -320,6 +328,7 @@ geNomad was used to identify sequences of viral and plasmid origin in the assemb
 The table below summarizes the detected mobile genetic element regions, including their predicted origin (virus or plasmid), genomic coordinates, length, number of genes, and confidence score.
 
 ```{r genomad_results}
+# Display the geNomad detected regions with interactive features for filtering and exporting. If no regions were detected, display a message.
 if (nrow(genomad_regions) > 0) {
     genomad_regions %>%
         select(seq_name, origin, coordinates, length, n_genes, score, 
@@ -350,6 +359,7 @@ Arrow direction indicates the coding strand. Coloring highlights genes by their 
 plasmid regions (ABRicate replicons and geNomad), and prophage or viral regions (geNomad).
 
 ```{r gene_map_setup}
+# Identify genes associated with COG category V (defense mechanisms) and COG category X (mobilome) from both Bakta annotations and EggNOG-mapper results.
 cog_v_genes <- union(
     bakta_tsv %>% filter(str_detect(DbXrefs, "COG:V")) %>% pull(`Locus Tag`),
     eggnog_combined %>% filter(str_detect(COG_category, "V")) %>% pull(query)
@@ -359,10 +369,12 @@ cog_x_genes <- union(
     eggnog_combined %>% filter(str_detect(COG_category, "X")) %>% pull(query)
 )
 
+# Extract AMR gene names from ABRicate summary for later use in gene classification
 amr_gene_names <- abricate_summary %>%
     select(-Database, -NUM_FOUND) %>%
     names()
 
+# Function to check if a gene is an AMR gene based on its name or product description matching known AMR gene names from ABRicate summary.
 is_amr_gene <- function(gene, product, amr_names) {
     gene_l <- tolower(gene)
     product_l <- tolower(product)
@@ -374,6 +386,7 @@ is_amr_gene <- function(gene, product, amr_names) {
 window_size <- 30000
 windows_per_plot <- 40
 
+# Prepare gene data for plotting, including classification based on COG categories, ABRicate hits, and geNomad regions.
 gene_data <- bakta_tsv %>%
     mutate(
         forward = Strand == "+",
@@ -432,6 +445,7 @@ highlight_colors <- c(
 )
 ```
 ```{r gene_map, results='asis', fig.height=32, fig.width=12}
+# Generate gene maps for each batch of windows, creating interactive plots with ggiraph. Each plot is displayed as a separate panel in the report.
 for (b in batches) {
   batch_data <- gene_data %>% filter(plot_batch == b)
   n_win <- length(unique(batch_data$molecule))
@@ -490,6 +504,7 @@ Results include the matched organism, database source, geographic location of th
 #### Hits quality
 
 ```{r metagraph_quality}
+# Plot the distribution of normalized scores for the top hits, excluding genes with no hits (NA scores). This provides an overview of the quality of matches found by MetaGraph.
 metagraph_top %>%
     filter(!is.na(normalized_score)) %>%
     ggplot(aes(x = normalized_score)) +
@@ -508,10 +523,14 @@ metagraph_top %>%
 #### Top organisms
 
 ```{r metagraph_organisms}
+# Summarize the top matched organisms based on MetaGraph results, filtering out non-specific matches (e.g., metagenomes, generic "bacterium" entries)
+# The summary includes the number of distinct genes matched, total hits, and mean score for each organism.
 top_n_organism <- 20
 
 organism_stats <- metagraph_all %>%
     filter(!is.na(organism)) %>%
+    filter(!str_detect(organism, regex("metagenome", ignore_case = TRUE))) %>%
+    filter(!str_detect(organism, "bacterium")) %>%
     group_by(organism) %>%
     summarise(
         n_genes = n_distinct(query),
@@ -528,55 +547,52 @@ organism_stats <- metagraph_all %>%
         mean_score = mean(mean_score),
         .groups = "drop"
     ) %>%
-    arrange(desc(n_genes))
+    filter(organism != "Other") %>%
+    arrange(n_genes) %>%
+    mutate(organism = factor(organism, levels = organism))
 
-top_organisms <- organism_stats %>% filter(organism != "Other") %>% pull(organism)
+top_organisms <- organism_stats %>% pull(organism)
 
 gene_details <- metagraph_all %>%
     filter(!is.na(organism), organism %in% top_organisms) %>%
+    filter(!str_detect(organism, regex("metagenome", ignore_case = TRUE))) %>%
+    filter(!str_detect(organism, "bacterium")) %>%
+    group_by(organism, query) %>%
+    slice_max(order_by = normalized_score, n = 1, with_ties = FALSE) %>%
+    ungroup() %>%
     select(organism, query, normalized_score)
 
 shared_genes <- SharedData$new(gene_details, key = ~organism, group = "organism_link")
-shared_data <- SharedData$new(organism_stats %>% filter(organism != "Other"), key = ~organism, group = "organism_link")
+shared_data <- SharedData$new(organism_stats, key = ~organism, group = "organism_link")
+```
 
-bscols(
-    widths = c(7, 5),
-    plot_ly(shared_data, x = ~n_genes, y = ~organism, type = "bar", orientation = "h",
-        color = ~mean_score, colors = c("#0D0887", "#5B02A3", "#9A179B", "#CB4678", "#EB7852", "#FBB32F", "#F0F921"),
-        text = ~paste0(n_genes, " genes (", n_hits, " hits)")) %>%
-        layout(
-            title = "Top matched organisms",
-            xaxis = list(title = "Number of distinct genes matched"),
-            yaxis = list(title = "", categoryorder = "total ascending"),
-            coloraxis = list(colorbar = list(title = "Mean score")),
-            dragmode = "select"
-        ),
-    datatable(shared_genes,
-        colnames = c("Organism", "Gene", "Score"),
-        options = list(pageLength = 15, scrollY = "400px"),
-        rownames = FALSE
+```{r metagraph_organisms_plot}
+# Create an interactive bar plot of the top matched organisms, showing the number of distinct genes matched and coloring by mean score.
+# The plot allows users to select organisms and see the corresponding genes in the linked data table below.
+plot_ly(shared_data, x = ~n_genes, y = ~organism, type = "bar", orientation = "h",
+    marker = list(
+        color = ~mean_score, 
+        colorscale = "Plasma",
+        colorbar = list(title = "Mean Score")
+    ),
+    text = ~paste0(n_genes, " genes (", n_hits, " hits)")) %>%
+    layout(
+        title = "Top matched organisms",
+        xaxis = list(title = "Number of distinct genes matched"),
+        yaxis = list(title = "", categoryorder = "trace"),
+        dragmode = "select",
+        height = 500
     )
-)
+```
 
-ggplot(organism_stats %>% filter(organism != "Other"),
-    aes(x = reorder(organism, n_genes), y = n_genes, fill = mean_score)) +
-    geom_col() +
-    geom_text(aes(label = paste0(n_genes, " genes (", n_hits, " total hits)")), 
-        hjust = -0.05, size = 3) +
-    coord_flip() +
-    scale_fill_viridis_c(name = "Mean score", option = "plasma", limits = c(0, 1)) +
-    scale_y_continuous(expand = expansion(mult = c(0, 0.3)), breaks = scales::pretty_breaks()) +
-    theme_minimal() +
-    theme(
-        panel.grid.minor = element_blank(),
-        plot.title = element_text(face = "bold", size = 18),
-        plot.caption = element_text(size = 14, color = "grey40"),
-        plot.text = element_text(size = 16),
-        plot.subtitle = element_text(color = "grey40")
-    ) +
-    labs(x = NULL, y = "Number of distinct genes matched",
-         title = "Most common matched organisms",
-         subtitle = "Distinct genes matched and total hit count. Color indicates mean match score")
+```{r metagraph_organisms_table}
+# Display a data table of the genes matched to the top organisms, showing the organism name, gene query, and normalized score.
+# The table is linked to the bar plot above, allowing users to see which genes are associated with each organism when selected.
+datatable(shared_genes,
+    colnames = c("Organism", "Gene", "Score"),
+    options = list(pageLength = 15, scrollY = "400px"),
+    rownames = FALSE
+)
 ```
 
 ### Hits {.tabset .tabset-fade .tabset-pills}
@@ -584,6 +600,7 @@ ggplot(organism_stats %>% filter(organism != "Other"),
 #### Top hits per gene
 
 ```{r metagraph_top_hits}
+# Display the top MetaGraph hits for each gene, filtering out genes with no hits (NA organisms). 
 metagraph_top %>%
     filter(!is.na(organism)) %>%
     datatable(
@@ -603,6 +620,7 @@ metagraph_top %>%
 #### All hits
 
 ```{r metagraph_all_hits}
+# Display all MetaGraph hits for each gene, filtering out genes with no hits (NA organisms) and sorting by query and normalized score.
 metagraph_all %>%
     filter(!is.na(organism)) %>%
     arrange(query, desc(normalized_score)) %>%
@@ -623,6 +641,7 @@ metagraph_all %>%
 #### No-hit genes
 
 ```{r metagraph_no_hits}
+# Display genes that had no hits in MetaGraph (NA organisms), indicating they may be novel or highly divergent.
 metagraph_top %>%
     filter(is.na(organism)) %>%
     datatable(

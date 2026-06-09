@@ -9,19 +9,23 @@ bakta:
   update: false
   threads: 8
 
+# Parameters for abricate
 abricate:
   mincov: 50
   minid: 50
   threads: 8
 
+# Path to the eggnog database and parameters for eggnog-mapper
 eggnog:
   db: "/scratch/lustre/home/vira9982/Gene_Origin/databases/eggnog_db"
   threads: 8
 
+# Path to the genomad database and parameters for genomad
 genomad:
   db: "/scratch/lustre/home/vira9982/Gene_Origin/databases/genomad_db"
   threads: 8
 
+# Parameters for metagraph
 metagraph:
   threads: 8
 
