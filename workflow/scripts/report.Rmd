@@ -1,0 +1,659 @@
+---
+title: "Gene Origin Report"
+author: "Made by Viktorija Ramonaite"
+date: "`r Sys.Date()`"
+output:
+    html_document:
+        toc: true
+        toc_float:
+            collapsed: true
+        theme: united
+        highlight: default
+        df_print: paged
+---
+
+Used R version: `r R.version.string`
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = FALSE,
+  message = FALSE,
+  warning = FALSE,
+  fig.width = 12,
+  fig.height = 6
+)
+
+library(tidyverse)
+library(DT)
+library(knitr)
+library(plotly)
+library(crosstalk)
+library(gggenes)
+library(kableExtra)
+library(jsonlite)
+library(ggrepel)
+library(ggiraph)
+```
+
+```{r load data}
+# Load and process data from Bakta, EggNOG-mapper, ABRicate, geNomad, and MetaGraph outputs.
+
+#Bakta
+lines <- readLines(snakemake@input[["bakta_tsv"]])
+header_line <- grep("^#Sequence", lines)
+bakta_tsv <- read_tsv(
+    paste(lines[header_line:length(lines)], collapse = "\n"),
+    col_names = TRUE
+) %>%
+    rename_with(~ str_remove(., "^#"))
+
+bakta_txt <- readLines(snakemake@input[["bakta_txt"]])
+get_val <- function(key) {
+  line <- grep(paste0("^\\s*", key, ":"), bakta_txt, value = TRUE)
+  trimws(sub(".*:\\s*", "", line))
+}
+
+genome_length <- paste0(get_val("Length"), " bp")
+gc_content <- paste0(get_val("GC"), " %")
+coding_density <- paste0(get_val("coding density"), " %")
+n_trna        <- get_val("tRNAs") 
+n_tmrna        <- get_val("tmRNAs")
+n_rrna        <- get_val("rRNAs")
+n_ncrna        <- get_val("ncRNAs")
+n_cds         <- get_val("CDSs")
+n_pseudogenes <- get_val("pseudogenes")
+n_hypothetical <- get_val("hypotheticals")
+n_sorf <- get_val("sORFs")
+n_orics <- get_val("oriCs")
+n_orivs <- get_val("oriVs")
+n_orits <- get_val("oriTs")
+bakta_version <- get_val("Software")
+db_version    <- get_val("Database")
+
+#EggNOG
+ann_lines <- readLines(snakemake@input[["eggnog_annotations"]])
+emapper_version <- grep("^## emapper", ann_lines, value = TRUE) %>%
+    str_extract("emapper-[\\d\\.]+-\\w+")
+ann_header <- grep("^#query", ann_lines)
+eggnog_ann <- read_tsv(
+    paste(ann_lines[ann_header:length(ann_lines)], collapse = "\n"),
+    comment = "##",
+    col_names = TRUE
+) %>%
+    rename(query = `#query`)
+
+orth_lines <- readLines(snakemake@input[["eggnog_orthologs"]]) 
+orth_header <- grep("^#qseqid", orth_lines)
+eggnog_orth <- read_tsv(
+    paste(orth_lines[orth_header:length(orth_lines)], collapse = "\n"),
+    comment = "##",
+    col_names = TRUE
+) %>%
+    rename(query = `#qseqid`)
+
+eggnog_combined <- eggnog_ann %>%
+    left_join(
+        eggnog_orth %>% select(query, sseqid, pident, qcov, scov),
+        by = c("query", "seed_ortholog" = "sseqid")
+    )
+
+#ABRicate
+abricate_summary <- read_tsv(snakemake@input[["abricate_summary"]], comment = "") %>%
+    mutate(`#FILE` = str_extract(`#FILE`, "abricate_(\\w+)\\.tab", group = 1)) %>%
+    rename(Database = `#FILE`)
+
+abricate_hits <- map_dfr(
+    c(snakemake@input[["abricate_ncbi"]], 
+        snakemake@input[["abricate_card"]], 
+        snakemake@input[["abricate_resfinder"]],
+        snakemake@input[["abricate_plasmidfinder"]]),
+    function(f) {
+        db_name <- str_extract(basename(f), "abricate_(\\w+)\\.tab", group = 1)
+        read_tsv(f) %>% mutate(source_db = db_name)
+    }
+)
+
+abricate_hits_amr <- abricate_hits %>% filter(source_db != "PlasmidFinder")
+abricate_hits_plasmid <- abricate_hits %>% filter(source_db == "PlasmidFinder")
+
+abricate_mincov <- snakemake@params[["abricate_mincov"]]
+abricate_minid  <- snakemake@params[["abricate_minid"]]
+
+#GeNomad
+genomad_virus <- read_tsv(snakemake@input[["genomad_virus"]])
+genomad_plasmid <- read_tsv(snakemake@input[["genomad_plasmid"]])
+
+genomad_regions <- bind_rows(
+    if (nrow(genomad_virus) > 0) genomad_virus %>% 
+        mutate(origin = "Virus") %>%
+        select(seq_name, origin, coordinates, length, n_genes,
+            any_of(c("virus_score", "taxonomy"))) %>%
+        rename(score = virus_score),
+    if (nrow(genomad_plasmid) > 0) genomad_plasmid %>% 
+        mutate(origin = "Plasmid") %>%
+        select(seq_name, origin, coordinates, length, n_genes,
+            any_of(c("plasmid_score", "conjugation_genes", "amr_genes"))) %>%
+        rename(score = plasmid_score)
+)
+
+if (nrow(genomad_regions) > 0) {
+    genomad_regions <- genomad_regions %>%
+        separate(coordinates, into = c("genomad_start", "genomad_end"), 
+            sep = "-", convert = TRUE, remove = FALSE)
+} else {
+    genomad_regions <- tibble(
+        seq_name = character(), origin = character(),
+        coordinates = character(), length = integer(),
+        n_genes = integer(), score = numeric(),
+        genomad_start = integer(), genomad_end = integer()
+    )
+}
+
+#Metagraph
+metagraph_raw <- fromJSON(snakemake@input[["metagraph"]], simplifyVector = FALSE)
+
+metagraph_top <- map_dfr(metagraph_raw, function(entry) {
+    querry <- entry$query_id
+    results <- entry$raw_results$results
+
+    if (length(results) == 0) {
+        return(
+            tibble(
+                query = querry,
+                sequence_id = NA_character_,
+                organism = NA_character_,
+                normalized_score = NA_real_,
+                database = NA_character_,
+                geo_loc_name = NA_character_,
+                sequence_url = NA_character_,
+                biosample = NA_character_
+            )
+        )
+    }
+
+    scores <- sapply(results, function(r) r$table_data$normalized_score)
+    top <- results[[which.max(scores)]]
+
+    tibble(
+        query = querry,
+        sequence_id = top$table_data$sequence_id,
+        organism = top$table_data$organism,
+        normalized_score = top$table_data$normalized_score,
+        database = top$table_data$database,
+        geo_loc_name = top$enrichment$geo_loc_name,
+        sequence_url = top$table_data$sequence_url,
+        biosample = top$table_data$biosample
+    )
+})
+
+metagraph_all <- map_dfr(metagraph_raw, function(entry) {
+    querry <- entry$query_id
+    results <- entry$raw_results$results
+    if (length(results) == 0) return(NULL)
+
+    map_dfr(results, function(result) {
+        tibble(
+            query = querry,
+            sequence_id = result$table_data$sequence_id,
+            organism = result$table_data$organism,
+            normalized_score = result$table_data$normalized_score,
+            database = result$table_data$database,
+            geo_loc_name = result$enrichment$geo_loc_name,
+            sequence_url = result$table_data$sequence_url,
+            biosample = result$table_data$biosample
+        )
+    })
+})
+```
+
+## Bakta results {.tabset .tabset-fade .tabset-pills}
+
+Bakta was used for bacterial genome annotation, identifying genomic features such as coding sequences (CDSs), tRNAs, rRNAs, and other non-coding RNAs.
+Using Bakta version `r bakta_version` with database version `r db_version`.
+
+### Overview
+ 
+The following table summarizes the key features of the annotated genome.
+
+```{r bakta_overview}
+# Create a summary table of genome features and display it.
+tibble(
+    Feature = c("Genome length", "GC content", "Coding density", "tRNAs", 
+        "tmRNAs", "rRNAs", "ncRNAs", "CDSs", "Pseudogenes", 
+        "Hypothetical proteins", "sORFs", "oriCs", "oriVs", "oriTs"),
+    Value = c(genome_length, gc_content, coding_density, n_trna, n_tmrna,
+        n_rrna, n_ncrna, n_cds, n_pseudogenes, n_hypothetical, n_sorf, 
+        n_orics, n_orivs, n_orits)
+) %>%
+    datatable(
+        caption = "Bakta genome annotation summary",
+        filter   = "none",
+        options  = list(pageLength = 20, dom = "t"),
+        rownames = FALSE,
+        class    = "cell-border stripe hover"
+    )
+```
+
+### Gene annotation
+
+The following table lists the annotated genes, including their sequence ID, locus tag, type, gene name (if available), and product description.
+
+```{r bakta_genes}
+# Display the gene annotation table with interactive features for filtering and exporting.
+bakta_tsv %>%
+    select(`Sequence Id`, `Locus Tag`, Type, Gene, Product) %>%
+    datatable(
+        caption = "Bakta gene annotation",
+        filter   = "top",
+        extensions = "Buttons",
+        options  = list(
+            pageLength = 20,
+            dom = "Blfrtip",
+            buttons = c("copy", "csv","pdf"),
+            scrollX = TRUE
+        ),
+        class    = "display"
+    )
+```
+
+## EggNOG results
+
+EggNOG-mapper was used for functional annotation of predicted protein sequences from Bakta, assigning orthologous groups and COG functional categories.
+Selected columns from eggNOG-mapper output include query identifier, seed ortholog, alignment metrics (percent identity, query and subject coverage), 
+COG functional category, and functional description.
+Using EggNOG-mapper version `r emapper_version`.
+
+```{r eggnog_tabel}
+# Display the EggNOG annotations with interactive features for filtering and exporting.
+eggnog_combined %>%
+    select(query, seed_ortholog, pident, qcov, scov, COG_category, Description) %>%
+    datatable(
+        caption = "EggNOG annotations",
+        filter   = "top",
+        extensions = "Buttons",
+        options  = list(
+            pageLength = 20,
+            dom = "Blfrtip",
+            buttons = c("copy", "csv","pdf"),
+            scrollX = TRUE
+        ),
+        class    = "display"
+    )
+```
+
+## ABRicate results {.tabset .tabset-fade .tabset-pills}
+
+ABRicate was used to screen the assembled genome against multiple databases for antimicrobial resistance genes and plasmid replicons.
+Genes were identified based on nucleotide sequence similarity with minimum coverage of `r abricate_mincov`% and minimum identity of `r abricate_minid`%.
+
+### AMR genes
+
+The summary table shows the presence of detected resistance genes across AMR databases (NCBI AMRFinderPlus, CARD, Resfinder).
+
+```{r abricate_amr}
+# Display the summary of AMR genes detected by ABRicate, excluding plasmid replicons, with interactive features for filtering and exporting.
+abricate_summary %>%
+    filter(Database != "PlasmidFinder") %>%
+    select(-NUM_FOUND) %>%
+    kable(caption = "AMR genes detected by each database (% coverage)") %>%
+    kableExtra::kable_styling(
+        bootstrap_options = c("striped", "hover", "condensed"),
+        full_width = TRUE,
+        font_size = 12
+    ) %>%
+    kableExtra::scroll_box(width = "100%")
+```
+
+### Plasmid replicons
+
+PlasmidFinder was used to identify plasmid replicon sequences, enabling classification of plasmid incompatibility types present in the genome.
+
+```{r abricate_plasmid}
+# Display the summary of plasmid replicons detected by ABRicate, with interactive features for filtering and exporting.
+abricate_summary %>%
+    filter(Database == "PlasmidFinder") %>%
+    select(-NUM_FOUND) %>%
+    kable(caption = "Plasmid replicons detected (% coverage)") %>%
+    kableExtra::kable_styling(
+        bootstrap_options = c("striped", "hover", "condensed"),
+        full_width = TRUE,
+        font_size = 12
+    ) %>%
+    kableExtra::scroll_box(width = "100%")
+```
+
+## geNomad results
+
+geNomad was used to identify sequences of viral and plasmid origin in the assembled genome.
+The table below summarizes the detected mobile genetic element regions, including their predicted origin (virus or plasmid), genomic coordinates, length, number of genes, and confidence score.
+
+```{r genomad_results}
+# Display the geNomad detected regions with interactive features for filtering and exporting. If no regions were detected, display a message.
+if (nrow(genomad_regions) > 0) {
+    genomad_regions %>%
+        select(seq_name, origin, coordinates, length, n_genes, score, 
+            any_of(c("taxonomy", "conjugation_genes", "amr_genes"))) %>%
+        datatable(
+            caption = "geNomad detected regions",
+            filter = "top",
+            extensions = "Buttons",
+            options = list(
+                pageLength = 20,
+                dom = "Blfrtip",
+                buttons = c("copy", "csv", "pdf"),
+                scrollX = TRUE
+            ),
+            class = "display"
+        )
+} else {
+    cat("No viral or plasmid regions detected by geNomad.")
+}
+```
+
+## Gene Map
+
+Annotated genes from Bakta were visualised as gene arrow maps using the gggenes R package. 
+The given sequence was divided into 30 kb windows to improve readability, with each window displayed as a separate panel. 
+Arrow direction indicates the coding strand. Coloring highlights genes by their origin-related signal: AMR and resistance genes 
+(based on ABRicate hits), defense mechanisms (COG category V), mobilome genes such as prophages and transposons (COG category X), 
+plasmid regions (ABRicate replicons and geNomad), and prophage or viral regions (geNomad).
+
+```{r gene_map_setup}
+# Identify genes associated with COG category V (defense mechanisms) and COG category X (mobilome) from both Bakta annotations and EggNOG-mapper results.
+cog_v_genes <- union(
+    bakta_tsv %>% filter(str_detect(DbXrefs, "COG:V")) %>% pull(`Locus Tag`),
+    eggnog_combined %>% filter(str_detect(COG_category, "V")) %>% pull(query)
+)
+cog_x_genes <- union(
+    bakta_tsv %>% filter(str_detect(DbXrefs, "COG:X")) %>% pull(`Locus Tag`),
+    eggnog_combined %>% filter(str_detect(COG_category, "X")) %>% pull(query)
+)
+
+# Extract AMR gene names from ABRicate summary for later use in gene classification
+amr_gene_names <- abricate_summary %>%
+    select(-Database, -NUM_FOUND) %>%
+    names()
+
+# Function to check if a gene is an AMR gene based on its name or product description matching known AMR gene names from ABRicate summary.
+is_amr_gene <- function(gene, product, amr_names) {
+    gene_l <- tolower(gene)
+    product_l <- tolower(product)
+    any(sapply(tolower(amr_names), function(a) {
+        grepl(a, gene_l, fixed = TRUE) | grepl(a, product_l, fixed = TRUE)
+    }))
+}
+
+window_size <- 30000
+windows_per_plot <- 40
+
+# Prepare gene data for plotting, including classification based on COG categories, ABRicate hits, and geNomad regions.
+gene_data <- bakta_tsv %>%
+    mutate(
+        forward = Strand == "+",
+        is_cog_v = `Locus Tag` %in% cog_v_genes,
+        is_cog_x = `Locus Tag` %in% cog_x_genes,
+        is_amr = map2_lgl(Start, Stop, function(s, e) {
+            any(abricate_hits_amr$START < e & abricate_hits_amr$END > s)
+        }),
+        is_plasmid_rep = map2_lgl(Start, Stop, function(s, e) {
+            any(abricate_hits_plasmid$START < e & abricate_hits_plasmid$END > s)
+        }),
+        is_viral = map2_lgl(Start, Stop, function(s, e) {
+            any(genomad_regions$origin == "Virus" & 
+                genomad_regions$genomad_start < e & 
+                genomad_regions$genomad_end > s)
+        }),
+        is_plasmid = map2_lgl(Start, Stop, function(s, e) {
+            any(genomad_regions$origin == "Plasmid" & 
+                genomad_regions$genomad_start < e & 
+                genomad_regions$genomad_end > s)
+        }),
+        highlight = case_when(
+            is_amr            ~ "AMR / resistance",
+            is_cog_v          ~ "Defense (COG V)",
+            is_cog_x          ~ "Mobilome (COG X)",
+            is_plasmid_rep | is_plasmid ~ "Plasmid",
+            is_viral          ~ "Prophage / viral",
+            TRUE              ~ "Other"
+        ),
+        highlight = factor(highlight, 
+            levels = c("AMR / resistance", "Defense (COG V)", "Mobilome (COG X)", "Plasmid", "Prophage / viral", "Other")),
+        tooltip = paste0(
+            "<b>", coalesce(Gene, "-"), "</b> (", `Locus Tag`, ")",
+            "<br>Type: ", Type,
+            "<br>Product: ", Product
+        ),
+        midpoint = (Start + Stop) / 2,
+        window_num = floor(midpoint / window_size),
+        plot_batch = floor(window_num / windows_per_plot) + 1,
+        molecule = paste0(
+            format(window_num * window_size / 1e6, nsmall = 1), " – ",
+            format((window_num + 1) * window_size / 1e6, nsmall = 1), " Mb"
+        ),
+        molecule = reorder(molecule, window_num)
+    )
+
+batches <- sort(unique(gene_data$plot_batch))
+
+highlight_colors <- c(
+    "AMR / resistance"     = "#FB8500",
+    "Defense (COG V)"      = "#1c7f97",
+    "Mobilome (COG X)"     = "#588157",
+    "Plasmid"              = "#A855F7",
+    "Prophage / viral"     = "#E63946",
+    "Other"                = "#cccccc"
+)
+```
+```{r gene_map, results='asis', fig.height=32, fig.width=12}
+# Generate gene maps for each batch of windows, creating interactive plots with ggiraph. Each plot is displayed as a separate panel in the report.
+for (b in batches) {
+  batch_data <- gene_data %>% filter(plot_batch == b)
+  n_win <- length(unique(batch_data$molecule))
+  h <- max(n_win * 1.5, 4)
+
+  p <- ggplot(batch_data, aes(xmin = Start, xmax = Stop, y = molecule,
+    fill = highlight, forward = forward)) +
+    geom_gene_arrow(arrowhead_height = unit(4, "mm"), arrow_body_height = unit(3, "mm")) +
+    geom_rect_interactive(
+      aes(xmin = Start, xmax = Stop,
+          ymin = 0.6, ymax = 1.4,
+          tooltip = tooltip,
+          data_id = `Locus Tag`),
+      fill = "transparent", colour = "transparent"
+    ) +
+    facet_wrap(~ molecule, scales = "free", ncol = 1) +
+    scale_fill_manual(values = highlight_colors, name = NULL, drop = FALSE) +
+    theme_genes() +
+    theme(
+        strip.text = element_text(size = 12, margin = margin(1, 0, 1, 0)),
+        plot.text = element_text(size = 12),
+        legend.text = element_text(size = 12),
+        panel.spacing = unit(0.1, "lines")
+    ) +
+    labs(x = "Position (bp)", y = NULL)
+
+  widget <- girafe(
+    ggobj = p,
+    width_svg = 12, height_svg = h,
+    options = list(
+      opts_tooltip(css = "background:white;padding:8px;border-radius:4px;border:1px solid #ccc;font-size:12px;"),
+      opts_hover(css = "fill:orange;stroke:orange;opacity:0.5;"),
+      opts_sizing(rescale = TRUE, width = 1)
+    )
+  )
+
+  cat(knitr::knit_child(text = c(
+    sprintf("```{r gene-map-%d, echo=FALSE, fig.height=%g, fig.width=12}", b, h),
+    "widget",
+    "```"
+  ), envir = environment(), quiet = TRUE))
+  cat("\n\n")
+}
+```
+
+## Metagraph results
+
+MetaGraph was used to query the selected origin-related gene set — comprising COG category V (defense mechanism) 
+and COG category X (mobilome) genes, together with AMR and plasmid genes identified by ABRicate and viral and plasmid genes 
+identified by geNomad — against a large-scale sequence search index to identify the closest matching organisms. 
+For each gene, the top hit was selected based on the highest normalized alignment score. 
+Results include the matched organism, database source, geographic location of the sample, and sequence accession.
+
+### Overview {.tabset .tabset-fade .tabset-pills}
+
+#### Hits quality
+
+```{r metagraph_quality}
+# Plot the distribution of normalized scores for the top hits, excluding genes with no hits (NA scores). This provides an overview of the quality of matches found by MetaGraph.
+metagraph_top %>%
+    filter(!is.na(normalized_score)) %>%
+    ggplot(aes(x = normalized_score)) +
+    geom_histogram(bins = 30, fill = "#219EBC", colour = "white", alpha = 0.8) +
+    scale_y_continuous(breaks = scales::breaks_pretty(n = 5), 
+        labels = function(x) format(x, big.mark = "", decimal.mark = "")) +
+    theme_minimal() +
+    theme(
+        panel.grid.minor = element_blank(),
+        plot.title = element_text(face = "bold")
+    ) +
+    labs(x = "Normalized score", y = "Number of genes",
+         title = "Distribution of top hit scores")
+```
+
+#### Top organisms
+
+```{r metagraph_organisms}
+# Summarize the top matched organisms based on MetaGraph results, filtering out non-specific matches (e.g., metagenomes, generic "bacterium" entries)
+# The summary includes the number of distinct genes matched, total hits, and mean score for each organism.
+top_n_organism <- 20
+
+organism_stats <- metagraph_all %>%
+    filter(!is.na(organism)) %>%
+    filter(!str_detect(organism, regex("metagenome", ignore_case = TRUE))) %>%
+    filter(!str_detect(organism, "bacterium")) %>%
+    group_by(organism) %>%
+    summarise(
+        n_genes = n_distinct(query),
+        n_hits = n(),
+        mean_score = mean(normalized_score),
+        .groups = "drop"
+    ) %>%
+    arrange(desc(n_genes)) %>%
+    mutate(organism = if_else(row_number() > top_n_organism, "Other", organism)) %>%
+    group_by(organism) %>%
+    summarise(
+        n_genes = sum(n_genes),
+        n_hits = sum(n_hits),
+        mean_score = mean(mean_score),
+        .groups = "drop"
+    ) %>%
+    filter(organism != "Other") %>%
+    arrange(n_genes) %>%
+    mutate(organism = factor(organism, levels = organism))
+
+top_organisms <- organism_stats %>% pull(organism)
+
+gene_details <- metagraph_all %>%
+    filter(!is.na(organism), organism %in% top_organisms) %>%
+    filter(!str_detect(organism, regex("metagenome", ignore_case = TRUE))) %>%
+    filter(!str_detect(organism, "bacterium")) %>%
+    group_by(organism, query) %>%
+    slice_max(order_by = normalized_score, n = 1, with_ties = FALSE) %>%
+    ungroup() %>%
+    select(organism, query, normalized_score)
+
+shared_genes <- SharedData$new(gene_details, key = ~organism, group = "organism_link")
+shared_data <- SharedData$new(organism_stats, key = ~organism, group = "organism_link")
+```
+
+```{r metagraph_organisms_plot}
+# Create an interactive bar plot of the top matched organisms, showing the number of distinct genes matched and coloring by mean score.
+# The plot allows users to select organisms and see the corresponding genes in the linked data table below.
+plot_ly(shared_data, x = ~n_genes, y = ~organism, type = "bar", orientation = "h",
+    marker = list(
+        color = ~mean_score, 
+        colorscale = "Plasma",
+        colorbar = list(title = "Mean Score")
+    ),
+    text = ~paste0(n_genes, " genes (", n_hits, " hits)")) %>%
+    layout(
+        title = "Top matched organisms",
+        xaxis = list(title = "Number of distinct genes matched"),
+        yaxis = list(title = "", categoryorder = "trace"),
+        dragmode = "select",
+        height = 500
+    )
+```
+
+```{r metagraph_organisms_table}
+# Display a data table of the genes matched to the top organisms, showing the organism name, gene query, and normalized score.
+# The table is linked to the bar plot above, allowing users to see which genes are associated with each organism when selected.
+datatable(shared_genes,
+    colnames = c("Organism", "Gene", "Score"),
+    options = list(pageLength = 15, scrollY = "400px"),
+    rownames = FALSE
+)
+```
+
+### Hits {.tabset .tabset-fade .tabset-pills}
+
+#### Top hits per gene
+
+```{r metagraph_top_hits}
+# Display the top MetaGraph hits for each gene, filtering out genes with no hits (NA organisms). 
+metagraph_top %>%
+    filter(!is.na(organism)) %>%
+    datatable(
+        caption = "Top Metagraph hits for each gene",
+        filter   = "top",
+        extensions = "Buttons",
+        options  = list(
+            pageLength = 20,
+            dom = "Blfrtip",
+            buttons = c("copy", "csv","pdf"),
+            scrollX = TRUE
+        ),
+        class    = "display"
+    )
+```
+
+#### All hits
+
+```{r metagraph_all_hits}
+# Display all MetaGraph hits for each gene, filtering out genes with no hits (NA organisms) and sorting by query and normalized score.
+metagraph_all %>%
+    filter(!is.na(organism)) %>%
+    arrange(query, desc(normalized_score)) %>%
+    datatable(
+        caption = "All Metagraph hits for each gene",
+        filter   = "top",
+        extensions = "Buttons",
+        options  = list(
+            pageLength = 20,
+            dom = "Blfrtip",
+            buttons = c("copy", "csv","pdf"),
+            scrollX = TRUE
+        ),
+        class    = "display"
+    )
+```
+
+#### No-hit genes
+
+```{r metagraph_no_hits}
+# Display genes that had no hits in MetaGraph (NA organisms), indicating they may be novel or highly divergent.
+metagraph_top %>%
+    filter(is.na(organism)) %>%
+    datatable(
+        caption = "Genes with no Metagraph hits",
+        filter   = "top",
+        extensions = "Buttons",
+        options  = list(
+            pageLength = 20,
+            dom = "Blfrtip",
+            buttons = c("copy", "csv","pdf"),
+            scrollX = TRUE
+        ),
+        class    = "display"
+    )
+```

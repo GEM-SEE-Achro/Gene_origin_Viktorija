@@ -2,3 +2,5 @@
 run.sh
 Logs/
 results/
+benchmarks/
+slurm-*

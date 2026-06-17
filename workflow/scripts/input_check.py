@@ -2,6 +2,7 @@ from Bio import SeqIO
 import sys
 from pathlib import Path
 
+# All the input files and parameters
 input_type = snakemake.params.input_type
 input_fasta = snakemake.params.input_fasta
 
@@ -17,6 +18,7 @@ eggnog_threads = snakemake.params.eggnog_threads
 
 metagraph_threads = snakemake.params.metagraph_threads
 
+# Checking if the input FASTA file exists and is in valid format
 try:
     with open(input_fasta, "r") as handle:
         records = list(SeqIO.parse(handle, "fasta"))
@@ -29,6 +31,7 @@ except FileNotFoundError:
 except Exception as e:
     sys.exit(f"{input_fasta}: Error reading FASTA file: {e}")
 
+# Validating input parameters
 if input_type not in ["fasta"]:
     sys.exit(f"{input_type}: Unsupported input type. Supported types are: fasta.")
 

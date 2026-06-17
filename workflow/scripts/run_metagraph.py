@@ -5,8 +5,16 @@ from Bio import SeqIO
 import sys
 import json
 
+import requests
+
+# Input and output files
 fasta_file = snakemake.input.cogv
 output_file = snakemake.output.res
+
+# Extract parameters
+disc_threshold = snakemake.params.discovery_threshold
+min_match = snakemake.params.min_exact_match
+labels = snakemake.params.node_labels
 
 sequences = []
 sequences_ids = []
@@ -14,13 +22,38 @@ for record in SeqIO.parse(fasta_file, "fasta"):
     sequences.append(str(record.seq))
     sequences_ids.append(record.id)
 
+# Metagraph API interaction functions
+# Query Metagraph databases with a sequence and return the search_id
 def query_metagraph(sequence, sequence_id):
     response = requests.post(
         "https://metagraph.ethz.ch:8081/search",
         json={
             "queries": [
-                {"db": "sra-microbe", "q": sequence},
-                {"db": "refseq85_coord", "q": sequence},
+                {
+                    "db": "sra-microbe",
+                    "q": sequence,
+                    "params":  {
+                        "discovery_threshold" : disc_threshold,
+                        "min_exact_match" : min_match
+                    }
+                },
+                {
+                    "db": "refseq33m",
+                    "q": sequence,
+                    "params":  {
+                        "discovery_threshold" : disc_threshold,
+                        "min_exact_match" : min_match
+                    }
+                },
+                {
+                    "db": "sra-logan-chunks",
+                    "q": sequence,
+                    "params":  {
+                        "discovery_threshold" : disc_threshold,
+                        "min_exact_match" : min_match,
+                        "node_labels" : labels
+                    }
+                },
             ],
             "search_name": f"{sequence_id} search"
         },
@@ -35,6 +68,7 @@ def query_metagraph(sequence, sequence_id):
     
     return response_data["search_id"]
 
+# Monitor the search status until it is done, then return the final status
 def monitor_search(search_id):
     while True:
         try:
@@ -43,13 +77,14 @@ def monitor_search(search_id):
             ).json()
 
             if status['status'] in ['done', 'completed', 'failed']:
-                return status
+                return status['status']
         
         except Exception as e:
             print(f"  Error in status check: {e}")
     
         time.sleep(5)
 
+# Get the results of a completed search
 def get_results(search_id):
     results = requests.get(
         f"https://metagraph.ethz.ch:8081/search/{search_id}/results",
@@ -59,6 +94,7 @@ def get_results(search_id):
 
 all_results = []
 
+# Main loop to process each sequence: submit search, monitor status, and retrieve results
 for i, (seq, seq_id) in enumerate(zip(sequences, sequences_ids), 1):
     try:
         search_id = query_metagraph(seq, seq_id)

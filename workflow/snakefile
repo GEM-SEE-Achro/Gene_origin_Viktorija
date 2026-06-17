@@ -4,8 +4,7 @@ configfile: "../config/config.yaml"
 
 rule all:
     input:
-        "results/abricate/abricate_summary.tab",
-        "results/metagraph/metagraph_matches.json"
+        "results/reports/report.html"
 
 include: "rules/input_check.smk"
 
@@ -15,4 +14,8 @@ include: "rules/ABRicate.smk"
 
 include: "rules/eggnog.smk"
 
+include: "rules/genomad.smk"
+
 include: "rules/metagraph.smk"
+
+include: "rules/generate_report.smk"
