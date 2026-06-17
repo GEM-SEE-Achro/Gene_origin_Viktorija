@@ -25,6 +25,10 @@ rule run_metagraph:
         res = "results/metagraph/metagraph_matches.json"
     threads:
         config["metagraph"]["threads"]
+    params:
+        discovery_threshold = config["metagraph"]["discovery_threshold"],
+        min_exact_match = config["metagraph"]["min_exact_match"],
+        node_labels = config["metagraph"]["node_labels"]
     conda:
         "../envs/py.yaml"
     benchmark:

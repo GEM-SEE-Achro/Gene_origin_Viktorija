@@ -11,6 +11,11 @@ import requests
 fasta_file = snakemake.input.cogv
 output_file = snakemake.output.res
 
+# Extract parameters
+disc_threshold = snakemake.params.discovery_threshold
+min_match = snakemake.params.min_exact_match
+labels = snakemake.params.node_labels
+
 sequences = []
 sequences_ids = []
 for record in SeqIO.parse(fasta_file, "fasta"):
@@ -28,26 +33,25 @@ def query_metagraph(sequence, sequence_id):
                     "db": "sra-microbe",
                     "q": sequence,
                     "params":  {
-                        "discovery_threshold" : 0.5,
-                        "min_exact_match" : 0.5
+                        "discovery_threshold" : disc_threshold,
+                        "min_exact_match" : min_match
                     }
                 },
                 {
                     "db": "refseq33m",
                     "q": sequence,
                     "params":  {
-                        "discovery_threshold" : 0.5,
-                        "min_exact_match" : 0.5
+                        "discovery_threshold" : disc_threshold,
+                        "min_exact_match" : min_match
                     }
                 },
                 {
                     "db": "sra-logan-chunks",
                     "q": sequence,
                     "params":  {
-                        "discovery_threshold" : 0.5,
-                        "min_exact_match" : 0.5,
-                        "node_labels" : ["superkingdom_bacteria", "order_enterobacterales", "escherichia_coli", "salmonella_enterica",
-                                         "genus_klebsiella", "genus_mycobacterium", "metagenome", "metagenome_amp"]
+                        "discovery_threshold" : disc_threshold,
+                        "min_exact_match" : min_match,
+                        "node_labels" : labels
                     }
                 },
             ],
@@ -73,7 +77,7 @@ def monitor_search(search_id):
             ).json()
 
             if status['status'] in ['done', 'completed', 'failed']:
-                return status
+                return status['status']
         
         except Exception as e:
             print(f"  Error in status check: {e}")

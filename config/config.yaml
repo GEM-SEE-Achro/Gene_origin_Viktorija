@@ -4,7 +4,7 @@ input: "../../dataset_1/DES1.fa"
 
 # Path to the bakta database and parameters for bakta
 bakta:
-  db: "/scratch/lustre/home/vira9982/Gene_Origin/databases/bakta_db"
+  db: "../../databases/bakta_db"
   type: "full"
   update: false
   threads: 8
@@ -17,15 +17,20 @@ abricate:
 
 # Path to the eggnog database and parameters for eggnog-mapper
 eggnog:
-  db: "/scratch/lustre/home/vira9982/Gene_Origin/databases/eggnog_db"
+  db: "../../databases/eggnog_db"
   threads: 8
 
 # Path to the genomad database and parameters for genomad
 genomad:
-  db: "/scratch/lustre/home/vira9982/Gene_Origin/databases/genomad_db"
+  db: "../../databases/genomad_db"
   threads: 8
 
 # Parameters for metagraph
 metagraph:
   threads: 8
+  discovery_threshold: 0.5
+  min_exact_match: 0.5
+  node_labels: ["superkingdom_bacteria", "order_enterobacterales",
+                "escherichia_coli", "salmonella_enterica",
+                "genus_klebsiella", "genus_mycobacterium"]
 
