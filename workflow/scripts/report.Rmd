@@ -97,6 +97,32 @@ eggnog_combined <- eggnog_ann %>%
         by = c("query", "seed_ortholog" = "sseqid")
     )
 
+# Combined Bakta + EggNOG table for display, with column names prefixed by
+# source since the two tools' columns are interleaved in one table.
+bakta_eggnog_combined <- bakta_tsv %>%
+    left_join(
+        eggnog_combined %>%
+            select(query, seed_ortholog, pident, qcov, scov, COG_category, Description),
+        by = c("Locus Tag" = "query")
+    ) %>%
+    select(
+        `Sequence Id`, `Locus Tag`, Type, Gene, Product,
+        seed_ortholog, pident, qcov, scov, COG_category, Description
+    ) %>%
+    rename(
+        `Bakta: Sequence Id`    = `Sequence Id`,
+        `Bakta: Locus Tag`      = `Locus Tag`,
+        `Bakta: Type`           = Type,
+        `Bakta: Gene`           = Gene,
+        `Bakta: Product`        = Product,
+        `EggNOG: Seed ortholog` = seed_ortholog,
+        `EggNOG: % identity`    = pident,
+        `EggNOG: Query cov`     = qcov,
+        `EggNOG: Subject cov`   = scov,
+        `EggNOG: COG category`  = COG_category,
+        `EggNOG: Description`   = Description
+    )
+
 #ABRicate
 abricate_summary <- read_tsv(snakemake@input[["abricate_summary"]], comment = "") %>%
     mutate(`#FILE` = str_extract(`#FILE`, "abricate_(\\w+)\\.tab", group = 1)) %>%
@@ -206,27 +232,29 @@ metagraph_all <- map_dfr(metagraph_raw, function(entry) {
 })
 ```
 
-## Bakta results {.tabset .tabset-fade .tabset-pills}
+## Annotation results {.tabset .tabset-fade .tabset-pills}
 
-Bakta was used for bacterial genome annotation, identifying genomic features such as coding sequences (CDSs), tRNAs, rRNAs, and other non-coding RNAs.
-Using Bakta version `r bakta_version` with database version `r db_version`.
+Genome annotation combines two tools:
+
+- **Bakta** (version `r bakta_version`, database `r db_version`) was used for bacterial genome annotation, identifying genomic features such as coding sequences (CDSs), tRNAs, rRNAs and other non-coding RNAs, and assigning gene names and product descriptions.
+- **EggNOG-mapper** (version `r emapper_version`) was used for functional annotation of the protein sequences predicted by Bakta, assigning a seed ortholog with alignment metrics (percent identity, query and subject coverage), a COG functional category and a functional description.
 
 ### Overview
- 
-The following table summarizes the key features of the annotated genome.
+
+The following table summarizes the key features of the annotated genome, as reported by Bakta.
 
 ```{r bakta_overview}
 # Create a summary table of genome features and display it.
 tibble(
-    Feature = c("Genome length", "GC content", "Coding density", "tRNAs", 
-        "tmRNAs", "rRNAs", "ncRNAs", "CDSs", "Pseudogenes", 
+    Feature = c("Genome length", "GC content", "Coding density", "tRNAs",
+        "tmRNAs", "rRNAs", "ncRNAs", "CDSs", "Pseudogenes",
         "Hypothetical proteins", "sORFs", "oriCs", "oriVs", "oriTs"),
     Value = c(genome_length, gc_content, coding_density, n_trna, n_tmrna,
-        n_rrna, n_ncrna, n_cds, n_pseudogenes, n_hypothetical, n_sorf, 
+        n_rrna, n_ncrna, n_cds, n_pseudogenes, n_hypothetical, n_sorf,
         n_orics, n_orivs, n_orits)
 ) %>%
     datatable(
-        caption = "Bakta genome annotation summary",
+        caption = "Genome annotation summary",
         filter   = "none",
         options  = list(pageLength = 20, dom = "t"),
         rownames = FALSE,
@@ -236,39 +264,13 @@ tibble(
 
 ### Gene annotation
 
-The following table lists the annotated genes, including their sequence ID, locus tag, type, gene name (if available), and product description.
+The following table lists all annotated genes. Bakta results (sequence ID, locus tag, feature type, gene name and product) are joined with EggNOG-mapper results by locus tag, so both can be browsed and filtered together. Columns are prefixed with `Bakta:` or `EggNOG:` to show their source. Since EggNOG-mapper only annotates protein-coding genes, rows for other feature types (e.g. tRNAs, rRNAs) and proteins without an EggNOG hit have empty `EggNOG:` columns.
 
-```{r bakta_genes}
-# Display the gene annotation table with interactive features for filtering and exporting.
-bakta_tsv %>%
-    select(`Sequence Id`, `Locus Tag`, Type, Gene, Product) %>%
+```{r annotation_table}
+# Display the joined Bakta + EggNOG annotation table with interactive features for filtering and exporting.
+bakta_eggnog_combined %>%
     datatable(
-        caption = "Bakta gene annotation",
-        filter   = "top",
-        extensions = "Buttons",
-        options  = list(
-            pageLength = 20,
-            dom = "Blfrtip",
-            buttons = c("copy", "csv","pdf"),
-            scrollX = TRUE
-        ),
-        class    = "display"
-    )
-```
-
-## EggNOG results
-
-EggNOG-mapper was used for functional annotation of predicted protein sequences from Bakta, assigning orthologous groups and COG functional categories.
-Selected columns from eggNOG-mapper output include query identifier, seed ortholog, alignment metrics (percent identity, query and subject coverage), 
-COG functional category, and functional description.
-Using EggNOG-mapper version `r emapper_version`.
-
-```{r eggnog_tabel}
-# Display the EggNOG annotations with interactive features for filtering and exporting.
-eggnog_combined %>%
-    select(query, seed_ortholog, pident, qcov, scov, COG_category, Description) %>%
-    datatable(
-        caption = "EggNOG annotations",
+        caption = "Gene annotation (Bakta + EggNOG-mapper)",
         filter   = "top",
         extensions = "Buttons",
         options  = list(
@@ -295,6 +297,8 @@ The summary table shows the presence of detected resistance genes across AMR dat
 abricate_summary %>%
     filter(Database != "PlasmidFinder") %>%
     select(-NUM_FOUND) %>%
+    # Drop gene columns not found by any AMR database ("." = not found), e.g. plasmid replicons.
+    select(where(~ !all(as.character(.x) %in% "."))) %>%
     kable(caption = "AMR genes detected by each database (% coverage)") %>%
     kableExtra::kable_styling(
         bootstrap_options = c("striped", "hover", "condensed"),
@@ -313,6 +317,8 @@ PlasmidFinder was used to identify plasmid replicon sequences, enabling classifi
 abricate_summary %>%
     filter(Database == "PlasmidFinder") %>%
     select(-NUM_FOUND) %>%
+    # Drop gene columns not found by PlasmidFinder ("." = not found), e.g. AMR genes.
+    select(where(~ !all(as.character(.x) %in% "."))) %>%
     kable(caption = "Plasmid replicons detected (% coverage)") %>%
     kableExtra::kable_styling(
         bootstrap_options = c("striped", "hover", "condensed"),
@@ -388,6 +394,10 @@ windows_per_plot <- 40
 
 # Prepare gene data for plotting, including classification based on COG categories, ABRicate hits, and geNomad regions.
 gene_data <- bakta_tsv %>%
+    left_join(
+        eggnog_combined %>% select(query, COG_category, Description),
+        by = c("Locus Tag" = "query")
+    ) %>%
     mutate(
         forward = Strand == "+",
         is_cog_v = `Locus Tag` %in% cog_v_genes,
@@ -421,7 +431,9 @@ gene_data <- bakta_tsv %>%
         tooltip = paste0(
             "<b>", coalesce(Gene, "-"), "</b> (", `Locus Tag`, ")",
             "<br>Type: ", Type,
-            "<br>Product: ", Product
+            "<br>Product: ", Product,
+            "<br>COG category: ", coalesce(COG_category, "-"),
+            "<br>EggNOG description: ", coalesce(Description, "-")
         ),
         midpoint = (Start + Stop) / 2,
         window_num = floor(midpoint / window_size),
