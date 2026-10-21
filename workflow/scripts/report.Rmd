@@ -187,7 +187,14 @@ if (nrow(genomad_regions) > 0) {
 }
 
 #Metagraph
-metagraph_raw <- fromJSON(snakemake@input[["metagraph"]], simplifyVector = FALSE)
+run_metagraph <- snakemake@config[["run_metagraph"]]
+
+# If metagraph was not run, there is no JSON file, simply create empty list.
+metagraph_raw <- if (run_metagraph) {
+    fromJSON(snakemake@input[["metagraph"]], simplifyVector = FALSE)
+} else {
+    list()
+}
 
 metagraph_top <- map_dfr(metagraph_raw, function(entry) {
     querry <- entry$query_id
@@ -551,7 +558,9 @@ Results include the matched organism, database source, geographic location of th
 
 ```{r metagraph_status, results='asis'}
 # Explain why the MetaGraph tables below are empty, if they are.
-if (n_metagraph_queried == 0) {
+if (!run_metagraph) {
+    cat("**MetaGraph was not run**\n")
+} else if(n_metagraph_queried == 0) {
     cat("**No genes were queried in MetaGraph**: no COG V/X, AMR, plasmid or viral genes were found in this sample, or all MetaGraph queries failed.\n")
 } else if (!has_metagraph_hits) {
     cat(sprintf("**None of the %d queried genes had MetaGraph hits.**\n", n_metagraph_queried))
@@ -707,7 +716,7 @@ metagraph_all %>%
 
 #### No-hit genes
 
-`r if (n_metagraph_queried == 0) "No genes were queried in MetaGraph."`
+`r if (!run_metagraph) "MetaGraph search was not run." else if (n_metagraph_queried == 0) "No genes were queried in MetaGraph."`
 
 ```{r metagraph_no_hits, eval = n_metagraph_queried > 0}
 # Display genes that had no hits in MetaGraph (NA organisms), indicating they may be novel or highly divergent.

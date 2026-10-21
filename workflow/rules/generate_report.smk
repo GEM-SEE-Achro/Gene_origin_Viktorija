@@ -11,11 +11,12 @@ rule generate_report:
         abricate_plasmidfinder = "results/{sample}/abricate/abricate_PlasmidFinder.tab",
         genomad_virus = "results/{sample}/genomad/{sample}_summary/{sample}_virus_summary.tsv",
         genomad_plasmid = "results/{sample}/genomad/{sample}_summary/{sample}_plasmid_summary.tsv",
-        metagraph = "results/{sample}/metagraph/metagraph_matches.json"
+        metagraph = "results/{sample}/metagraph/metagraph_matches.json" if config["metagraph"]["run"] else []
     output:
         "results/{sample}/report.html"
     params:
         sample = "{sample}",
+        run_metagraph = config["metagraph"]["run"],
         abricate_mincov = config["abricate"]["mincov"],
         abricate_minid = config["abricate"]["minid"]
     conda:
