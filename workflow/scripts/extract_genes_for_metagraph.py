@@ -14,7 +14,7 @@ abricate_resfinder_tab = snakemake.input.abricate_resfinder_tab
 abricate_plasmid_tab = snakemake.input.abricate_plasmid_tab
 genomad_plasmid_tsv = snakemake.input.genomad_plasmid_tsv
 genomad_virus_tsv = snakemake.input.genomad_virus_tsv
-fasta_input = snakemake.input.input_fasta
+bakta_fna = snakemake.input.bakta_fna
 fasta_output = snakemake.output.output_fasta
 
 # Reading and parsing eggnog tsv file
@@ -90,7 +90,9 @@ for _, row in virus_df.iterrows():
 all_id = cog_all_id | abricate_id | genomad_id
 selected_genes = bakta_df[bakta_df['Locus Tag'].isin(all_id)]
 
-input_sequence = SeqIO.read(fasta_input, 'fasta')
+# Contigs from Bakta's .fna, keyed by the same IDs as '#Sequence Id' in bakta.tsv (contig_1, contig_2, ...),
+# so genomes with several contigs work too
+contigs = SeqIO.to_dict(SeqIO.parse(bakta_fna, 'fasta'))
 output_records = []
 
 # Extracting sequences for the selected genes and writing to output fasta file
@@ -101,7 +103,7 @@ for _, gene in selected_genes.iterrows():
     locus_tag = gene['Locus Tag']
     gene_name = gene['Gene']
 
-    gene_seq = input_sequence.seq[start:end]
+    gene_seq = contigs[gene['#Sequence Id']].seq[start:end]
 
     if strand == '-':
         gene_seq = gene_seq.reverse_complement()

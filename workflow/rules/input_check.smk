@@ -11,7 +11,12 @@ rule check_for_input:
         abricate_minid = config["abricate"]["minid"],
         abricate_threads = config["abricate"]["threads"],
         eggnog_threads = config["eggnog"]["threads"],
-        metagraph_threads = config["metagraph"]["threads"]
+        genomad_threads = config["genomad"]["threads"],
+        metagraph_run = config["metagraph"]["run"],
+        metagraph_threads = config["metagraph"]["threads"],
+        metagraph_discovery_threshold = config["metagraph"]["discovery_threshold"],
+        metagraph_min_exact_match = config["metagraph"]["min_exact_match"],
+        metagraph_node_labels = config["metagraph"]["node_labels"]
     conda:
         "../envs/py.yaml"
     script:
