@@ -1,5 +1,3 @@
-genomad_basename = os.path.splitext(os.path.basename(config["input"]))[0]
-
 rule genomad_db:
     output:
         directory(config["genomad"]["db"])
@@ -12,17 +10,17 @@ rule genomad_db:
 
 rule genomad:
     input:
-        fna = "results/bakta/bakta.fna",
+        fna = "results/{sample}/bakta/bakta.fna",
         db = config["genomad"]["db"],
-        check_flag = "results/pass_checks.done"
+        check_flag = "results/{sample}/pass_checks.done"
     output:
-        virus_summary = f"results/genomad/{genomad_basename}_summary/{genomad_basename}_virus_summary.tsv",
-        virus_genes = f"results/genomad/{genomad_basename}_summary/{genomad_basename}_virus_genes.tsv",
-        plasmid_summary = f"results/genomad/{genomad_basename}_summary/{genomad_basename}_plasmid_summary.tsv",
-        plasmid_genes = f"results/genomad/{genomad_basename}_summary/{genomad_basename}_plasmid_genes.tsv"
+        virus_summary = "results/{sample}/genomad/{sample}_summary/{sample}_virus_summary.tsv",
+        virus_genes = "results/{sample}/genomad/{sample}_summary/{sample}_virus_genes.tsv",
+        plasmid_summary = "results/{sample}/genomad/{sample}_summary/{sample}_plasmid_summary.tsv",
+        plasmid_genes = "results/{sample}/genomad/{sample}_summary/{sample}_plasmid_genes.tsv"
     params:
-        outdir = "results/genomad",
-        renamed = f"results/genomad/{genomad_basename}.fna"
+        outdir = "results/{sample}/genomad",
+        renamed = "results/{sample}/genomad/{sample}.fna"
     threads:
         config["genomad"]["threads"]
     conda:

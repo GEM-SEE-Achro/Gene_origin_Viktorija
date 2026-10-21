@@ -1,6 +1,31 @@
-# Input type and file path
+# Input type and samples to analyse.
+# Each sample is "name: path to FASTA file". The name is used for the results
 input_type: "fasta"
-input: "../../dataset_1/DES1.fa"
+samples:
+  DES1: "../../dataset_1/DES1.fa"
+  e_faecium_AV10_2: "../../dataset_1/e_faecium/AV10/plasmids/AV10_2.fa"
+  e_faecium_AV10_3: "../../dataset_1/e_faecium/AV10/plasmids/AV10_3.fa"
+  e_faecium_AV10_4: "../../dataset_1/e_faecium/AV10/plasmids/AV10_4.fa"
+  e_faecium_AV10_5: "../../dataset_1/e_faecium/AV10/plasmids/AV10_5.fa"
+  e_faecium_AV10_AAC6li: "../../dataset_1/e_faecium/AV10/regions/AV10_AAC6Ii.fa"
+  e_faecium_AV10_acm: "../../dataset_1/e_faecium/AV10/regions/AV10_acm.fa"
+  e_faecium_AV10_dfrG: "../../dataset_1/e_faecium/AV10/regions/AV10_dfrG.fa"
+  e_faecium_AV10_efmA: "../../dataset_1/e_faecium/AV10/regions/AV10_efmA.fa"
+  e_faecium_AV10_ErmB_APH3llla: "../../dataset_1/e_faecium/AV10/regions/AV10_ErmB_APH3IIIa.fa"
+  e_faecium_AV10_msrC: "../../dataset_1/e_faecium/AV10/regions/AV10_msrC.fa"
+  e_faecium_AV10_vanB_cluster: "../../dataset_1/e_faecium/AV10/regions/AV10_vanB_cluster.fa"
+  e_faecium_R25_1: "../../dataset_1/e_faecium/R25/plasmids/R25_1.fa"
+  e_faecium_R25_2: "../../dataset_1/e_faecium/R25/plasmids/R25_2.fa"
+  e_faecium_R25_3: "../../dataset_1/e_faecium/R25/plasmids/R25_3.fa"
+  e_faecium_R25_4: "../../dataset_1/e_faecium/R25/plasmids/R25_4.fa"
+  e_faecium_R25_7: "../../dataset_1/e_faecium/R25/plasmids/R25_7.fa"
+  e_faecium_R25_AAC6li: "../../dataset_1/e_faecium/R25/regions/R25_AAC6Ii.fa"
+  e_faecium_R25_acm: "../../dataset_1/e_faecium/R25/regions/R25_acm.fa"
+  e_faecium_R25_dfrG: "../../dataset_1/e_faecium/R25/regions/R25_dfrG.fa"
+  e_faecium_R25_efmA: "../../dataset_1/e_faecium/R25/regions/R25_efmA.fa"
+  e_faecium_R25_ErmB: "../../dataset_1/e_faecium/R25/regions/R25_ErmB.fa"
+  e_faecium_R25_msrC: "../../dataset_1/e_faecium/R25/regions/R25_msrC.fa"
+  e_faecium_R25_vanB_cluster: "../../dataset_1/e_faecium/R25/regions/R25_vanB_cluster.fa"
 
 # Path to the bakta database and parameters for bakta
 bakta:

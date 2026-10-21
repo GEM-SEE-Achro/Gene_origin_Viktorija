@@ -43,6 +43,8 @@ for i, line in enumerate(lines):
         break
 
 bakta_df = pd.read_csv(bakta_tsv, sep='\t', skiprows=data_start_index, header=0)
+# Drop features without a locus tag (e.g. oriC/oriV/oriT regions), they are not genes
+bakta_df = bakta_df.dropna(subset=['Locus Tag'])
 bakta_mask = bakta_df['DbXrefs'].str.contains('COG:V', na=False) | \
              bakta_df['DbXrefs'].str.contains('COG:X', na=False)
 cog_bakta_id = set(bakta_df[bakta_mask]['Locus Tag'])

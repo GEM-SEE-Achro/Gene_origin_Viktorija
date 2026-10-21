@@ -1,22 +1,21 @@
-genomad_basename = os.path.splitext(os.path.basename(config["input"]))[0]
-
 rule generate_report:
     input:
-        bakta_tsv = "results/bakta/bakta.tsv",
-        bakta_txt = "results/bakta/bakta.txt",
-        eggnog_annotations = "results/eggnog/eggnog.emapper.annotations",
-        eggnog_orthologs = "results/eggnog/eggnog.emapper.seed_orthologs",
-        abricate_summary = "results/abricate/abricate_summary.tab",
-        abricate_ncbi = "results/abricate/abricate_AMRFinderPlus.tab",
-        abricate_card = "results/abricate/abricate_CARD.tab",
-        abricate_resfinder = "results/abricate/abricate_Resfinder.tab",
-        abricate_plasmidfinder = "results/abricate/abricate_PlasmidFinder.tab",
-        genomad_virus = f"results/genomad/{genomad_basename}_summary/{genomad_basename}_virus_summary.tsv",
-        genomad_plasmid = f"results/genomad/{genomad_basename}_summary/{genomad_basename}_plasmid_summary.tsv",
-        metagraph = "results/metagraph/metagraph_matches.json"
+        bakta_tsv = "results/{sample}/bakta/bakta.tsv",
+        bakta_txt = "results/{sample}/bakta/bakta.txt",
+        eggnog_annotations = "results/{sample}/eggnog/eggnog.emapper.annotations",
+        eggnog_orthologs = "results/{sample}/eggnog/eggnog.emapper.seed_orthologs",
+        abricate_summary = "results/{sample}/abricate/abricate_summary.tab",
+        abricate_ncbi = "results/{sample}/abricate/abricate_AMRFinderPlus.tab",
+        abricate_card = "results/{sample}/abricate/abricate_CARD.tab",
+        abricate_resfinder = "results/{sample}/abricate/abricate_Resfinder.tab",
+        abricate_plasmidfinder = "results/{sample}/abricate/abricate_PlasmidFinder.tab",
+        genomad_virus = "results/{sample}/genomad/{sample}_summary/{sample}_virus_summary.tsv",
+        genomad_plasmid = "results/{sample}/genomad/{sample}_summary/{sample}_plasmid_summary.tsv",
+        metagraph = "results/{sample}/metagraph/metagraph_matches.json"
     output:
-        "results/reports/report.html"
+        "results/{sample}/report.html"
     params:
+        sample = "{sample}",
         abricate_mincov = config["abricate"]["mincov"],
         abricate_minid = config["abricate"]["minid"]
     conda:
