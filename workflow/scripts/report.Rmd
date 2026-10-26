@@ -261,6 +261,23 @@ metagraph_all <- bind_rows(metagraph_template, metagraph_all)
 
 n_metagraph_queried <- nrow(metagraph_top)
 has_metagraph_hits  <- any(!is.na(metagraph_top$organism))
+
+# Genes selected for MetaGraph (with the reason each was selected) and requested genes/regions
+selected_genes <- if (run_metagraph) {
+    read_tsv(snakemake@input[["selected_genes"]], col_types = cols(.default = "c"))
+} else {
+    tibble(query = character(), gene = character(), product = character(), selected_by = character())
+}
+not_found <- if (run_metagraph) readLines(snakemake@input[["not_found"]]) else character()
+
+# Add gene name, product and selection reason next to the gene ID in the MetaGraph tables
+metagraph_top <- metagraph_top %>%
+    left_join(selected_genes, by = "query") %>%
+    relocate(gene, product, selected_by, .after = query)
+metagraph_all <- metagraph_all %>%
+    left_join(selected_genes, by = "query") %>%
+    relocate(gene, product, selected_by, .after = query)
+
 ```
 
 ## Annotation results {.tabset .tabset-fade .tabset-pills}
@@ -559,16 +576,40 @@ if (!run_metagraph) {
 }
 ```
 
-MetaGraph was used to query the selected origin-related gene set — comprising COG category V (defense mechanism) 
-and COG category X (mobilome) genes, together with AMR and plasmid genes identified by ABRicate and viral and plasmid genes 
-identified by geNomad — against a large-scale sequence search index to identify the closest matching organisms. 
-For each gene, the top hit was selected based on the highest normalized alignment score. 
-Results include the matched organism, database source, geographic location of the sample, and sequence accession.
+MetaGraph was used to query selected genes against a large-scale sequence search index to identify 
+the closest matching organisms. Genes can be selected by gene groups (amr: genes overlapping 
+ABRicate AMR hits; plasmid: PlasmidFinder hits and geNomad plasmid regions; virus: geNomad 
+viral regions; cog:LETTERS: genes with the given COG categories in Bakta or EggNOG), by gene name or 
+locus tag, and by genomic regions. The selected_by column in the tables below shows why each 
+gene was queried. For each gene, the top hit was selected based on the highest normalized 
+alignment score. Results include the matched organism, database source, geographic location 
+of the sample, and sequence accession.
+
+```{r metagraph_selection, results='asis'}
+# Show the gene selection settings used for this sample, how many genes were selected
+# and which requested genes or regions were not found.
+groups  <- unlist(snakemake@params[["groups"]])
+genes   <- unlist(snakemake@params[["genes"]])
+regions <- unlist(snakemake@params[["regions"]])
+
+show_list <- function(x) if (length(x) == 0) "none" else paste0("`", x, "`", collapse = ", ")
+
+cat("**Gene selection for this sample:**\n\n")
+cat("- Gene groups: ", show_list(groups), "\n", sep = "")
+cat("- Genes: ", show_list(genes), "\n", sep = "")
+cat("- Regions: ", show_list(regions), "\n\n", sep = "")
+cat("**", nrow(selected_genes), " genes were selected for MetaGraph.**\n\n", sep = "")
+
+if (length(not_found) > 0) {
+    cat("Not found in this sample: ", show_list(not_found), "\n\n", sep = "")
+}
+```
+
 
 ```{r metagraph_status, results='asis'}
 # Explain why the MetaGraph tables below are empty, if they are.
 if (n_metagraph_queried == 0) {
-    cat("**No genes were queried in MetaGraph**: no COG V/X, AMR, plasmid or viral genes were found in this sample, or all MetaGraph queries failed.\n")
+    cat("**No genes were queried in MetaGraph**: no genes matched the gene selection for this sample, or all MetaGraph queries failed.\n")
 } else if (!has_metagraph_hits) {
     cat(sprintf("**None of the %d queried genes had MetaGraph hits.**\n", n_metagraph_queried))
 }

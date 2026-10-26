@@ -10,7 +10,14 @@ rule extract_genes:
         genomad_virus_tsv = "results/{sample}/genomad/{sample}_summary/{sample}_virus_genes.tsv",
         bakta_fna = "results/{sample}/bakta/bakta.fna"
     output:
-        output_fasta = "results/{sample}/metagraph/extracted_genes.fasta"
+        output_fasta = "results/{sample}/metagraph/extracted_genes.fasta",
+        selected_genes = "results/{sample}/metagraph/selected_genes.tsv",
+        not_found = "results/{sample}/metagraph/not_found.txt"
+    params:
+        groups = config["metagraph"]["select"]["groups"],
+        genes = config["metagraph"]["select"]["genes"],
+        regions = lambda wc: config["metagraph"]["select"]["regions"].get(wc.sample, [])
+
     conda:
         "../envs/py.yaml"
     script:

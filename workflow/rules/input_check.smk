@@ -16,7 +16,11 @@ rule check_for_input:
         metagraph_threads = config["metagraph"]["threads"],
         metagraph_discovery_threshold = config["metagraph"]["discovery_threshold"],
         metagraph_min_exact_match = config["metagraph"]["min_exact_match"],
-        metagraph_node_labels = config["metagraph"]["node_labels"]
+        metagraph_node_labels = config["metagraph"]["node_labels"],
+        select_groups = config["metagraph"]["select"]["groups"],
+        select_genes = config["metagraph"]["select"]["genes"],
+        select_regions = config["metagraph"]["select"]["regions"],
+        sample_names = list(SAMPLES.keys())
     conda:
         "../envs/py.yaml"
     script:
