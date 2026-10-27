@@ -2,9 +2,14 @@ import os
 
 configfile: "../config/config.yaml"
 
+SAMPLES = config["samples"]
+
+wildcard_constraints:
+    sample = "|".join(SAMPLES.keys())
+
 rule all:
     input:
-        "results/reports/report.html"
+        expand("results/{sample}/report.html", sample=SAMPLES.keys())
 
 include: "rules/input_check.smk"
 

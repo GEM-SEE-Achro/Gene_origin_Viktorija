@@ -16,16 +16,16 @@ rule eggnog_mapper:
     input:
         db = os.path.join(config["eggnog"]["db"], "eggnog.db"),
         dmnd = os.path.join(config["eggnog"]["db"], "eggnog_proteins.dmnd"),
-        faa = "results/bakta/bakta.faa"
+        faa = "results/{sample}/bakta/bakta.faa"
     output:
-        hits = "results/eggnog/eggnog.emapper.hits",
-        seed = "results/eggnog/eggnog.emapper.seed_orthologs",
-        annotation = "results/eggnog/eggnog.emapper.annotations"
+        hits = "results/{sample}/eggnog/eggnog.emapper.hits",
+        seed = "results/{sample}/eggnog/eggnog.emapper.seed_orthologs",
+        annotation = "results/{sample}/eggnog/eggnog.emapper.annotations"
     threads:
         config["eggnog"]["threads"]
     params:
         eggnog_db = config["eggnog"]["db"],
-        prefix = "results/eggnog/eggnog"
+        prefix = "results/{sample}/eggnog/eggnog"
     conda:
         "../envs/eggnog.yaml"
     threads: 8

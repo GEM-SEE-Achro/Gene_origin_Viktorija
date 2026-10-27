@@ -1,6 +1,31 @@
-# Input type and file path
+# Input type and samples to analyse.
+# Each sample is "name: path to FASTA file". The name is used for the results
 input_type: "fasta"
-input: "../../dataset_1/DES1.fa"
+samples:
+  DES1: "../../dataset_1/DES1.fa"
+  #e_faecium_AV10_2: "../../dataset_1/e_faecium/AV10/plasmids/AV10_2.fa"
+  #e_faecium_AV10_3: "../../dataset_1/e_faecium/AV10/plasmids/AV10_3.fa"
+  #e_faecium_AV10_4: "../../dataset_1/e_faecium/AV10/plasmids/AV10_4.fa"
+  #e_faecium_AV10_5: "../../dataset_1/e_faecium/AV10/plasmids/AV10_5.fa"
+  #e_faecium_AV10_AAC6li: "../../dataset_1/e_faecium/AV10/regions/AV10_AAC6Ii.fa"
+  #e_faecium_AV10_acm: "../../dataset_1/e_faecium/AV10/regions/AV10_acm.fa"
+  #e_faecium_AV10_dfrG: "../../dataset_1/e_faecium/AV10/regions/AV10_dfrG.fa"
+  #e_faecium_AV10_efmA: "../../dataset_1/e_faecium/AV10/regions/AV10_efmA.fa"
+  #e_faecium_AV10_ErmB_APH3llla: "../../dataset_1/e_faecium/AV10/regions/AV10_ErmB_APH3IIIa.fa"
+  #e_faecium_AV10_msrC: "../../dataset_1/e_faecium/AV10/regions/AV10_msrC.fa"
+  #e_faecium_AV10_vanB_cluster: "../../dataset_1/e_faecium/AV10/regions/AV10_vanB_cluster.fa"
+  #e_faecium_R25_1: "../../dataset_1/e_faecium/R25/plasmids/R25_1.fa"
+  #e_faecium_R25_2: "../../dataset_1/e_faecium/R25/plasmids/R25_2.fa"
+  #e_faecium_R25_3: "../../dataset_1/e_faecium/R25/plasmids/R25_3.fa"
+  #e_faecium_R25_4: "../../dataset_1/e_faecium/R25/plasmids/R25_4.fa"
+  #e_faecium_R25_7: "../../dataset_1/e_faecium/R25/plasmids/R25_7.fa"
+  #e_faecium_R25_AAC6li: "../../dataset_1/e_faecium/R25/regions/R25_AAC6Ii.fa"
+  #e_faecium_R25_acm: "../../dataset_1/e_faecium/R25/regions/R25_acm.fa"
+  #e_faecium_R25_dfrG: "../../dataset_1/e_faecium/R25/regions/R25_dfrG.fa"
+  #e_faecium_R25_efmA: "../../dataset_1/e_faecium/R25/regions/R25_efmA.fa"
+  #e_faecium_R25_ErmB: "../../dataset_1/e_faecium/R25/regions/R25_ErmB.fa"
+  #e_faecium_R25_msrC: "../../dataset_1/e_faecium/R25/regions/R25_msrC.fa"
+  #e_faecium_R25_vanB_cluster: "../../dataset_1/e_faecium/R25/regions/R25_vanB_cluster.fa"
 
 # Path to the bakta database and parameters for bakta
 bakta:
@@ -27,10 +52,29 @@ genomad:
 
 # Parameters for metagraph
 metagraph:
+  run: true
   threads: 8
   discovery_threshold: 0.5
   min_exact_match: 0.5
   node_labels: ["superkingdom_bacteria", "order_enterobacterales",
                 "escherichia_coli", "salmonella_enterica",
                 "genus_klebsiella", "genus_mycobacterium"]
+  # Genes to query in MetaGraph. A gene is queried if it matches any of groups, genes or regions.
+  select:
+    # Gene groups:
+    #   amr - genes overlapping ABRicate AMR hits
+    #   plasmid - genes overlapping PlasmidFinder hits or geNomad plasmid regions
+    #   virus - genes in geNomad viral regions
+    #   cog:LETTERS - genes with any of these COG categories, e.g. "cog:VX" or "cog:L"
+    groups: ["amr", "plasmid", "virus", "cog:VX"]
+    # Specific genes, used for all samples: gene name or locus tag (not case-sensitive).
+    # A * at the end matches any ending, e.g. "blaOXA*" matches blaOXA-1 and blaOXA-258.
+    # Example: genes: ["vanB", "ermB", "blaOXA*"]
+    genes: ["blaOXA*"]
+    # Regions per sample, as "contig:start-end" using Bakta contig names (contig_1, contig_2, ...).
+    # All genes overlapping a region are queried. Example:
+    #   regions:
+    #     SAMPLE1: ["contig_1:4747236-4790404", "contig_1:5637229-5649044"]
+    regions:
+      DES1: ["contig_1:1001237-1003425", "contig_1:7000000-7001000"]
 

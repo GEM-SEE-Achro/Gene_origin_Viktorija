@@ -5,12 +5,15 @@ ABRICATE_DBS = {
     "PlasmidFinder" : "plasmidfinder"
 }
 
+wildcard_constraints:
+    db = "|".join(ABRICATE_DBS.keys())
+
 rule abricate:
     input:
-        fna = "results/bakta/bakta.fna",
-        check_flag = "results/pass_checks.done"
+        fna = "results/{sample}/bakta/bakta.fna",
+        check_flag = "results/{sample}/pass_checks.done"
     output:
-        tab = "results/abricate/abricate_{db}.tab"
+        tab = "results/{sample}/abricate/abricate_{db}.tab"
     threads:
         config["abricate"]["threads"]
     conda:
@@ -26,11 +29,11 @@ rule abricate:
 
 rule abricate_summary:
     input:
-        tabs = expand("results/abricate/abricate_{db}.tab", db=ABRICATE_DBS.keys())
+        tabs = expand("results/{{sample}}/abricate/abricate_{db}.tab", db=ABRICATE_DBS.keys())
     output:
-        summary = "results/abricate/abricate_summary.tab"
+        summary = "results/{sample}/abricate/abricate_summary.tab"
     log:
-        "Logs/abricate.log"
+        "Logs/{sample}/abricate.log"
     conda:
         "../envs/abricate.yaml"
     shell:
