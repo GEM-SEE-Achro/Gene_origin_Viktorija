@@ -186,6 +186,34 @@ if (nrow(genomad_regions) > 0) {
     )
 }
 
+#DefenseFinder
+defense_genes <- read_tsv(snakemake@input[["defensefinder_genes"]], col_types = cols(.default = "c"))
+defense_hmmer <- read_tsv(snakemake@input[["defensefinder_hmmer"]], col_types = cols(.default = "c"))
+
+defense_genes_full <- defense_genes %>%
+    left_join(
+        bakta_tsv %>% select('Locus Tag', 'Gene', 'Product'),
+        by = c("hit_id" = "Locus Tag")
+    ) %>%
+    mutate(system = str_remove(sys_id, "^bakta_")) %>%
+    select(
+        'Locus Tag' = hit_id, Gene, Product,
+        System = system, Type = type, Subtype = subtype,
+        Component = gene_name, 'E-value' = hit_i_eval, Coverage = hit_profile_cov
+    )
+
+# HMMER hits of proteins that are not part of any detected system (partial or unassigned hits)
+defense_hmmer_full <- defense_hmmer %>%
+    anti_join(defense_genes, by = "hit_id") %>%
+    left_join(
+        bakta_tsv %>% select('Locus Tag', 'Gene', 'Product'),
+        by = c("hit_id" = "Locus Tag")
+   ) %>%
+    select(
+        'Locus Tag' = hit_id, Gene, Product,
+        Component = gene_name, 'E-value' = i_eval, Coverage = hit_profile_cov
+    )
+
 #Metagraph
 run_metagraph <- isTRUE(snakemake@params[["run_metagraph"]])
 
@@ -418,13 +446,71 @@ if (nrow(genomad_regions) > 0) {
 }
 ```
 
+## DefenseFinder results {.tabset .tabset-fade .tabset-pills}
+
+DefenseFinder was used to detect anti-phage defense systems in the protein sequences predicted by Bakta.
+A system is reported when all of its required components are found close together in the genome.
+
+### Defense system genes
+
+Genes of the detected defense systems. *Component* is the part of the system the gene matches,
+
+```{r defensefinder_systems}
+# Display the genes of the detected defense systems with interactive features for filtering and exporting. If no systems were detected, display a message.
+if (nrow(defense_genes_full) > 0) {
+    defense_genes_full %>%
+        datatable(
+            caption = "DefenseFinder defense system genes",
+            filter = "top",
+            extensions = "Buttons",
+            options = list(
+                pageLength = 20,
+                dom = "Blfrtip",
+                buttons = c("copy", "csv", "pdf"),
+                scrollX = TRUE
+            ),
+            class = "display"
+        )
+} else {
+    cat("No defense systems detected by DefenseFinder.")
+}
+```
+
+### Partial / unassigned hits
+
+Proteins that match a defense system component but are not part of any complete system. These can be remnants of
+degraded systems, single components with other functions, or weak matches. A protein can match several components,
+so it can appear in more than one row.
+
+```{r defensefinder_partial}
+# Display the HMMER hits of proteins not assigned to any defense system. If there are none, display a message.
+if (nrow(defense_hmmer_full) > 0) {
+    defense_hmmer_full %>%
+        datatable(
+            caption = "DefenseFinder hits outside detected systems",
+            filter = "top",
+            extensions = "Buttons",
+            options = list(
+                pageLength = 20,
+                dom = "Blfrtip",
+                buttons = c("copy", "csv", "pdf"),
+                scrollX = TRUE
+            ),
+            class = "display"
+        )
+} else {
+    cat("No other defense-related hits found.")
+}
+```
+
 ## Gene Map
 
 Annotated genes from Bakta were visualised as gene arrow maps using the gggenes R package. 
 The given sequence was divided into 30 kb windows to improve readability, with each window displayed as a separate panel. 
-Arrow direction indicates the coding strand. Coloring highlights genes by their origin-related signal: AMR and resistance genes 
-(based on ABRicate hits), defense mechanisms (COG category V), mobilome genes such as prophages and transposons (COG category X), 
-plasmid regions (ABRicate replicons and geNomad), and prophage or viral regions (geNomad).
+Arrow direction indicates the coding strand. Coloring highlights genes by their origin-related signal: AMR and resistance genes
+(based on ABRicate hits), genes of anti-phage defense systems (DefenseFinder), other defense-related genes (COG category V),
+mobilome genes such as prophages and transposons (COG category X), plasmid regions (ABRicate replicons and geNomad),
+and prophage or viral regions (geNomad).
 
 ```{r gene_map_setup}
 # Identify genes associated with COG category V (defense mechanisms) and COG category X (mobilome) from both Bakta annotations and EggNOG-mapper results.
@@ -454,14 +540,20 @@ is_amr_gene <- function(gene, product, amr_names) {
 window_size <- 30000
 windows_per_plot <- 40
 
-# Prepare gene data for plotting, including classification based on COG categories, ABRicate hits, and geNomad regions.
+# Prepare gene data for plotting, including classification based on DefenseFinder systems, COG categories, ABRicate hits, and geNomad regions.
 gene_data <- bakta_tsv %>%
     left_join(
         eggnog_combined %>% select(query, COG_category, Description),
         by = c("Locus Tag" = "query")
     ) %>%
+    # DefenseFinder system and component of each gene (NA if the gene is not part of a defense system)
+    left_join(
+        defense_genes_full %>% select(`Locus Tag`, System, Component),
+        by = "Locus Tag"
+    ) %>%
     mutate(
         forward = Strand == "+",
+        is_defense_system = !is.na(System),
         is_cog_v = `Locus Tag` %in% cog_v_genes,
         is_cog_x = `Locus Tag` %in% cog_x_genes,
         is_amr = map2_lgl(Start, Stop, function(s, e) {
@@ -482,6 +574,8 @@ gene_data <- bakta_tsv %>%
         }),
         highlight = case_when(
             is_amr            ~ "AMR / resistance",
+            # DefenseFinder before COG V: a confirmed defense system gene is the more specific signal
+            is_defense_system ~ "Defense system gene",
             is_cog_v          ~ "Defense (COG V)",
             is_cog_x          ~ "Mobilome (COG X)",
             is_plasmid_rep | is_plasmid ~ "Plasmid",
@@ -489,13 +583,14 @@ gene_data <- bakta_tsv %>%
             TRUE              ~ "Other"
         ),
         highlight = factor(highlight, 
-            levels = c("AMR / resistance", "Defense (COG V)", "Mobilome (COG X)", "Plasmid", "Prophage / viral", "Other")),
+            levels = c("AMR / resistance", "Defense system gene", "Defense (COG V)", "Mobilome (COG X)", "Plasmid", "Prophage / viral", "Other")),
         tooltip = paste0(
             "<b>", coalesce(Gene, "-"), "</b> (", `Locus Tag`, ")",
             "<br>Type: ", Type,
             "<br>Product: ", Product,
             "<br>COG category: ", coalesce(COG_category, "-"),
-            "<br>EggNOG description: ", coalesce(Description, "-")
+            "<br>EggNOG description: ", coalesce(Description, "-"),
+            "<br>Defense system: ", if_else(is.na(System), "-", paste0(System, " (", Component, ")"))
         ),
         midpoint = (Start + Stop) / 2,
         window_num = floor(midpoint / window_size),
@@ -511,6 +606,7 @@ batches <- sort(unique(gene_data$plot_batch))
 
 highlight_colors <- c(
     "AMR / resistance"     = "#FB8500",
+    "Defense system gene"  = "#0B3C5D",
     "Defense (COG V)"      = "#1c7f97",
     "Mobilome (COG X)"     = "#588157",
     "Plasmid"              = "#A855F7",
