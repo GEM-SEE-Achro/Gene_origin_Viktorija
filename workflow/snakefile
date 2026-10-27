@@ -9,6 +9,7 @@ wildcard_constraints:
 
 rule all:
     input:
+        expand("results/{sample}/defensefinder/bakta_defense_finder_systems.tsv", sample=SAMPLES.keys()),
         expand("results/{sample}/report.html", sample=SAMPLES.keys())
 
 include: "rules/input_check.smk"
@@ -20,6 +21,8 @@ include: "rules/ABRicate.smk"
 include: "rules/eggnog.smk"
 
 include: "rules/genomad.smk"
+
+include: "rules/defensefinder.smk"
 
 include: "rules/metagraph.smk"
 
