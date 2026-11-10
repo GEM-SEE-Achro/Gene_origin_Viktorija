@@ -35,20 +35,20 @@ rule bakta:
         bakta_db = os.path.join(config["bakta"]["db"],
             "db-light" if config["bakta"]["type"] == "light" else "db",
             "bakta.db"),
-        fasta = config["input"],
+        fasta = lambda wc: SAMPLES[wc.sample],
         update_flag = "database_update.done" if config["bakta"]["update"] else [],
-        check_flag = "results/pass_checks.done"
+        check_flag = "results/{sample}/pass_checks.done"
     output:
-        dir = directory("results/bakta"),
-        gff = "results/bakta/bakta.gff3",
-        faa = "results/bakta/bakta.faa",
-        fna = "results/bakta/bakta.fna",
-        tsv = "results/bakta/bakta.tsv",
-        txt = "results/bakta/bakta.txt"
+        dir = directory("results/{sample}/bakta"),
+        gff = "results/{sample}/bakta/bakta.gff3",
+        faa = "results/{sample}/bakta/bakta.faa",
+        fna = "results/{sample}/bakta/bakta.fna",
+        tsv = "results/{sample}/bakta/bakta.tsv",
+        txt = "results/{sample}/bakta/bakta.txt"
     threads:
         config["bakta"]["threads"]
     log:
-        "Logs/bakta.log"
+        "Logs/{sample}/bakta.log"
     conda:
         "../envs/bakta.yaml"
     params:
