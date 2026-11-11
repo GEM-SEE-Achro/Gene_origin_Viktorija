@@ -1,0 +1,7 @@
+name: integron_finder
+channels:
+  - conda-forge
+  - bioconda
+  - defaults
+dependencies:
+  - integron_finder>=2.0.0

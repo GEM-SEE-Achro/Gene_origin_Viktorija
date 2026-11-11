@@ -9,8 +9,9 @@ wildcard_constraints:
 
 rule all:
     input:
-        expand("results/{sample}/isescan/bakta.fna.sum", sample=SAMPLES.keys()),
-        expand("results/{sample}/isescan/bakta.fna.tsv", sample=SAMPLES.keys()),
+        expand("results/{sample}/isescan/bakta/bakta.fna.sum", sample=SAMPLES.keys()),
+        expand("results/{sample}/isescan/bakta/bakta.fna.tsv", sample=SAMPLES.keys()),
+        expand("results/{sample}/integron_finder/Results_Integron_Finder_bakta/bakta.summary", sample=SAMPLES.keys()),
         expand("results/{sample}/defensefinder/bakta_defense_finder_systems.tsv", sample=SAMPLES.keys()),
         expand("results/{sample}/report.html", sample=SAMPLES.keys())
 
@@ -27,6 +28,8 @@ include: "rules/genomad.smk"
 include: "rules/defensefinder.smk"
 
 include: "rules/isescan.smk"
+
+include: "rules/integron_finder.smk"
 
 include: "rules/metagraph.smk"
 

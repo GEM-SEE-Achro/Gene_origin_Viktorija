@@ -57,6 +57,9 @@ defensefinder:
 isescan:
   threads: 8
 
+integron_finder:
+  threads: 4
+
 # Parameters for metagraph
 metagraph:
   run: true
