@@ -11,6 +11,8 @@ rule generate_report:
         abricate_plasmidfinder = "results/{sample}/abricate/abricate_PlasmidFinder.tab",
         genomad_virus = "results/{sample}/genomad/{sample}_summary/{sample}_virus_summary.tsv",
         genomad_plasmid = "results/{sample}/genomad/{sample}_summary/{sample}_plasmid_summary.tsv",
+        defensefinder_genes = "results/{sample}/defensefinder/bakta_defense_finder_genes.tsv",
+        defensefinder_hmmer = "results/{sample}/defensefinder/bakta_defense_finder_hmmer.tsv",
         metagraph = "results/{sample}/metagraph/metagraph_matches.json" if config["metagraph"]["run"] else [],
         selected_genes = "results/{sample}/metagraph/selected_genes.tsv" if config["metagraph"]["run"] else [],
         not_found = "results/{sample}/metagraph/not_found.txt" if config["metagraph"]["run"] else []

@@ -50,6 +50,10 @@ genomad:
   db: "../../databases/genomad_db"
   threads: 8
 
+defensefinder:
+  db: "../../databases/defensefinder_db"
+  threads: 8
+
 # Parameters for metagraph
 metagraph:
   run: true
