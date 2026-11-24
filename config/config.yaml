@@ -60,6 +60,10 @@ isescan:
 integron_finder:
   threads: 4
 
+conjscan:
+  db: "../../databases/conjscan_db"
+  threads: 8
+
 # Parameters for metagraph
 metagraph:
   run: true

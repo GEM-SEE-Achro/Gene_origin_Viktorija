@@ -1,7 +1,7 @@
-name: defensefinder
+name: conjscan
 channels:
   - conda-forge
   - bioconda
   - defaults
 dependencies:
-  - defense-finder>=3.0.0
+  - macsyfinder>=2.1.4
