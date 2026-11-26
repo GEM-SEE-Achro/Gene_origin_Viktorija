@@ -90,8 +90,8 @@ if not isinstance(metagraph_node_labels, list) or len(metagraph_node_labels) == 
 if not isinstance(select_groups, list):
     sys.exit(f"{select_groups}: Invalid MetaGraph gene groups. Please provide a list, e.g. [\"amr\", \"cog:VX\"].")
 for group in select_groups:
-    if not isinstance(group, str) or not (group in ["amr", "plasmid", "virus"] or re.fullmatch(r"cog:[A-Z]+", group)):
-        sys.exit(f"{group}: Unsupported MetaGraph gene group. Supported groups are: amr, plasmid, virus, cog:LETTERS (e.g. cog:VX).")
+    if not isinstance(group, str) or not (group in ["amr", "plasmid", "virus", "defense", "mge"] or re.fullmatch(r"cog:[A-Z]+", group)):
+        sys.exit(f"{group}: Unsupported MetaGraph gene group. Supported groups are: amr, plasmid, virus, defense, mge, cog:LETTERS (e.g. cog:VX).")
 
 # MetaGraph gene selection: genes (a lone "*" would select every gene)
 if not isinstance(select_genes, list):

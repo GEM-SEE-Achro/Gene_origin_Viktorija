@@ -2,7 +2,8 @@ rule integron_finder:
     input:
         fna = "results/{sample}/bakta/bakta.fna",
     output:
-        sum= "results/{sample}/integron_finder/Results_Integron_Finder_bakta/bakta.summary"
+        integrons = "results/{sample}/integron_finder/Results_Integron_Finder_bakta/bakta.integrons",
+        summary = "results/{sample}/integron_finder/Results_Integron_Finder_bakta/bakta.summary"
     params:
         outdir =  "results/{sample}/integron_finder"
     threads:

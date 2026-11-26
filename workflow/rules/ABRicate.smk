@@ -32,8 +32,6 @@ rule abricate_summary:
         tabs = expand("results/{{sample}}/abricate/abricate_{db}.tab", db=ABRICATE_DBS.keys())
     output:
         summary = "results/{sample}/abricate/abricate_summary.tab"
-    log:
-        "Logs/{sample}/abricate.log"
     conda:
         "../envs/abricate.yaml"
     shell:

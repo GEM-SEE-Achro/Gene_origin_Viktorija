@@ -214,6 +214,93 @@ defense_hmmer_full <- defense_hmmer %>%
         Component = gene_name, 'E-value' = i_eval, Coverage = hit_profile_cov
     )
 
+#ISEScan
+isescan_file <- snakemake@input[["isescan_tsv"]]
+isescan <- if(file.size(isescan_file) > 0){
+    read_tsv(isescan_file, col_types = cols(.default = "c"))
+} else {
+    tibble(seqID = character(), family = character(), isBegin = character(), isEnd = character(),
+        isLen = character(), ncopy4is = character(), irLen = character(), `E-value` = character(),
+        type = character())
+}
+isescan <- isescan %>%
+    mutate(
+        across(c(isBegin, isEnd, isLen, ncopy4is), as.integer),
+        Completeness = if_else(type == "c", "complete", "partial")
+    )
+
+#Integron Finder
+integron_file <- snakemake@input[["integrons"]]
+integron_elements <- read_tsv(integron_file, comment = "#", col_types = cols(.default = "c"))
+if (ncol(integron_elements) == 0){
+    integron_elements <- tibble(ID_integron = character(), ID_replicon = character(), element = character(),
+    pos_beg = character(), pos_end = character(), strand = character(), evalue = character(),
+    type_elt = character(), annotation = character(), model = character(), type = character())
+}
+integron_elements <- integron_elements %>%
+    mutate(across(c(pos_beg, pos_end), as.integer))
+
+integrons <- integron_elements %>%
+    group_by(Integron = ID_integron, Contig = ID_replicon) %>%
+    summarise(
+        Type = first(type),
+        Start = min(pos_beg),
+        End = max(pos_end),
+        Integrase = if_else(any(annotation == "intI"), "yes", "no"),
+        'attC sites' = sum(type_elt == "attC"),
+        'Cassette proteins' = sum(type_elt == "protein" & annotation != "intI"),
+        .groups = "drop"
+    )
+
+#CONJScan
+read_conjscan <- function(path) {
+    lines <- readLines(path)
+    data_lines <- lines[!startsWith(lines, "#") & lines != ""]
+    if (length(data_lines) == 0) {
+        return(tibble(hit_id = character(), model_fqn = character(), sys_id = character(),
+            sys_wholeness = character(), gene_name = character(), hit_status = character()))
+    }
+    read_tsv(I(paste(data_lines, collapse = "\n")), col_types = cols(.default = "c"))
+}
+
+# Contigs classified as plasmids by geNomad. A PlasmidFinder replicon gene alone does not make a contig
+# a plasmid: it can sit in a chromosome (e.g. an integrated plasmid), so it is not used here.
+plasmid_contigs <- as.character(genomad_plasmid$seq_name)
+
+conjscan_genes <- bind_rows(
+    read_conjscan(snakemake@input[["conjscan_chromosome"]]) %>% mutate(modelset = "Chromosome"),
+    read_conjscan(snakemake@input[["conjscan_plasmids"]]) %>% mutate(modelset = "Plasmid")
+) %>%
+    left_join(
+        bakta_tsv %>% select('Locus Tag', 'Sequence Id', Start, Stop, Gene, Product),
+        by = c("hit_id" = "Locus Tag")
+    ) %>%
+    mutate(on_plasmid = `Sequence Id` %in% plasmid_contigs) %>%
+    filter((on_plasmid & modelset == "Plasmid") | (!on_plasmid & modelset == "Chromosome")) %>%
+    mutate(
+        system_type = str_extract(model_fqn, "[^/]+$"),
+        likely_element = case_when(
+            str_starts(system_type, "dCONJ") ~ "Decayed conjugation system",
+            str_starts(system_type, "MOB") & on_plasmid ~ "Mobilizable plasmid",
+            str_starts(system_type, "MOB") & !on_plasmid ~ "Likely integrative mobilizable element (IME)",
+            on_plasmid ~ "Conjugative plasmid",
+            TRUE ~ "Likely integrative conjugative element (ICE)"
+        )
+    )
+
+conjscan_systems <- conjscan_genes %>%
+    group_by(System = sys_id) %>%
+    summarise(
+        Type = first(system_type),
+        `Likely element` = first(likely_element),
+        Contig = first(`Sequence Id`),
+        Start = min(Start), End = max(Stop),
+        Completeness = first(sys_wholeness),
+        Genes = n(),
+        `Locus tags` = paste(hit_id, collapse = ", "),
+        .groups = "drop"
+    )
+
 #Metagraph
 run_metagraph <- isTRUE(snakemake@params[["run_metagraph"]])
 
@@ -503,12 +590,137 @@ if (nrow(defense_hmmer_full) > 0) {
 }
 ```
 
+## IS elements (ISEScan)
+
+ISEScan was used to identify insertion sequence (IS) elements, the smallest autonomous mobile elements,
+consisting of a transposase gene flanked by terminal inverted repeats (TIRs). Both complete and partial
+IS elements are reported. IS elements of the same family on both sides of a gene can mobilise it as a composite transposon.
+
+```{r isescan_results, results='asis'}
+# Summary by IS family. If no IS elements were found, display a message.
+if (nrow(isescan) > 0) {
+    families <- isescan %>% count(family, sort = TRUE) %>% mutate(label = paste0(family, " ×", n)) %>% pull(label)
+    cat(sprintf("**%d IS elements detected:** %s\n\n", nrow(isescan), paste(families, collapse = ", ")))
+} else {
+    cat("No IS elements detected by ISEScan.")
+}
+```
+
+```{r isescan_table}
+# Display the IS elements with interactive features for filtering and exporting.
+if (nrow(isescan) > 0) {
+    isescan %>%
+        select(Contig = seqID, Family = family, Start = isBegin, End = isEnd, Length = isLen,
+            Copies = ncopy4is, Completeness, `TIR length` = irLen, `E-value`) %>%
+        datatable(
+            caption = "IS elements detected by ISEScan",
+            filter = "top",
+            extensions = "Buttons",
+            options = list(pageLength = 20, dom = "Blfrtip", buttons = c("copy", "csv", "pdf"), scrollX = TRUE),
+            class = "display"
+        )
+}
+```
+
+## Integrons (IntegronFinder) {.tabset .tabset-fade .tabset-pills}
+
+IntegronFinder was used to detect integrons, genetic platforms that capture and express gene cassettes using an
+integron integrase (IntI) and attC recombination sites. Cassettes often carry antimicrobial resistance genes.
+Integrons are classified as complete (integrase and attC sites), In0 (integrase only) or CALIN (attC sites without
+an integrase, often remnants after loss of the integrase).
+
+### Integrons
+
+```{r integron_summary}
+# Display one row per integron. If no integrons were found, display a message.
+if (nrow(integrons) > 0) {
+    integrons %>%
+        datatable(
+            caption = "Integrons detected by IntegronFinder",
+            filter = "top",
+            extensions = "Buttons",
+            options = list(pageLength = 20, dom = "Blfrtip", buttons = c("copy", "csv", "pdf"), scrollX = TRUE),
+            class = "display"
+        )
+} else {
+    cat("No integrons detected by IntegronFinder.")
+}
+```
+
+### Integron elements
+
+```{r integron_elements}
+# Display all elements (integrase, attC sites, cassette proteins) of the detected integrons.
+if (nrow(integron_elements) > 0) {
+    integron_elements %>%
+        select(Integron = ID_integron, Contig = ID_replicon, Element = element, Start = pos_beg, End = pos_end,
+            Strand = strand, `Element type` = type_elt, Annotation = annotation, `E-value` = evalue) %>%
+        datatable(
+            caption = "Integron elements",
+            filter = "top",
+            extensions = "Buttons",
+            options = list(pageLength = 20, dom = "Blfrtip", buttons = c("copy", "csv", "pdf"), scrollX = TRUE),
+            class = "display"
+        )
+} else {
+    cat("No integrons detected by IntegronFinder.")
+}
+```
+
+## Conjugative elements (CONJScan) {.tabset .tabset-fade .tabset-pills}
+
+CONJScan (MacSyFinder models) was used to detect conjugative systems (relaxase, coupling protein and mating pair
+formation apparatus) and mobilizable elements (relaxase only). Conjugative systems are found on conjugative plasmids
+and integrative and conjugative elements (ICEs). Systems on contigs not classified as plasmids by geNomad are
+reported as likely integrative elements (ICE, or IME for relaxase-only systems), since conjugative systems outside
+plasmids are typically part of integrative elements. Both CONJScan model sets are run: the plasmid models (which allow system genes
+to be further apart) are used for contigs classified as plasmids, the chromosome models for all other contigs.
+Decayed systems are incomplete remnants of older elements.
+
+### Systems
+
+```{r conjscan_systems}
+# Display one row per conjugative system. If no systems were found, display a message.
+if (nrow(conjscan_systems) > 0) {
+    conjscan_systems %>%
+        datatable(
+            caption = "Conjugative systems detected by CONJScan",
+            filter = "top",
+            extensions = "Buttons",
+            options = list(pageLength = 20, dom = "Blfrtip", buttons = c("copy", "csv", "pdf"), scrollX = TRUE),
+            class = "display"
+        )
+} else {
+    cat("No conjugative systems detected by CONJScan.")
+}
+```
+
+### System genes
+
+```{r conjscan_genes}
+# Display the genes of the detected conjugative systems.
+if (nrow(conjscan_genes) > 0) {
+    conjscan_genes %>%
+        select(System = sys_id, Type = system_type, `Locus tag` = hit_id, Gene, Product,
+            Component = gene_name, Role = hit_status, Start, End = Stop) %>%
+        datatable(
+            caption = "Genes of the conjugative systems",
+            filter = "top",
+            extensions = "Buttons",
+            options = list(pageLength = 20, dom = "Blfrtip", buttons = c("copy", "csv", "pdf"), scrollX = TRUE),
+            class = "display"
+        )
+} else {
+    cat("No conjugative systems detected by CONJScan.")
+}
+```
+
 ## Gene Map
 
 Annotated genes from Bakta were visualised as gene arrow maps using the gggenes R package. 
 The given sequence was divided into 30 kb windows to improve readability, with each window displayed as a separate panel. 
 Arrow direction indicates the coding strand. Coloring highlights genes by their origin-related signal: AMR and resistance genes
-(based on ABRicate hits), genes of anti-phage defense systems (DefenseFinder), other defense-related genes (COG category V),
+(based on ABRicate hits), genes of anti-phage defense systems (DefenseFinder), IS elements (ISEScan), other defense-related genes (COG category V),
 mobilome genes such as prophages and transposons (COG category X), plasmid regions (ABRicate replicons and geNomad),
 and prophage or viral regions (geNomad).
 
@@ -540,6 +752,18 @@ is_amr_gene <- function(gene, product, amr_names) {
 window_size <- 30000
 windows_per_plot <- 40
 
+# Integron overlapping a gene on the same contig, e.g. "integron_01 (complete)", or NA if none
+integron_of <- function(contig, s, e) {
+    hit <- integrons %>% filter(Contig == contig, Start < e, End > s)
+    if (nrow(hit) == 0) NA_character_ else paste0(hit$Integron[1], " (", hit$Type[1], ")")
+}
+
+# IS element overlapping a gene on the same contig, e.g. "IS3 (complete)", or NA if none
+is_element_of <- function(contig, s, e) {
+    hit <- isescan %>% filter(seqID == contig, isBegin < e, isEnd > s)
+    if (nrow(hit) == 0) NA_character_ else paste0(hit$family[1], " (", hit$Completeness[1], ")")
+}
+
 # Prepare gene data for plotting, including classification based on DefenseFinder systems, COG categories, ABRicate hits, and geNomad regions.
 gene_data <- bakta_tsv %>%
     left_join(
@@ -551,9 +775,19 @@ gene_data <- bakta_tsv %>%
         defense_genes_full %>% select(`Locus Tag`, System, Component),
         by = "Locus Tag"
     ) %>%
+    # CONJScan system of each gene (NA if the gene is not part of a conjugative system)
+    left_join(
+        conjscan_genes %>% select(hit_id, conj_system = system_type, conj_element = likely_element),
+        by = c("Locus Tag" = "hit_id")
+    ) %>%
     mutate(
         forward = Strand == "+",
         is_defense_system = !is.na(System),
+        is_element = pmap_chr(list(`Sequence Id`, Start, Stop), is_element_of),
+        integron = pmap_chr(list(`Sequence Id`, Start, Stop), integron_of),
+        is_integron = !is.na(integron),
+        is_conjugative = !is.na(conj_system),
+        is_is = !is.na(is_element),
         is_cog_v = `Locus Tag` %in% cog_v_genes,
         is_cog_x = `Locus Tag` %in% cog_x_genes,
         is_amr = map2_lgl(Start, Stop, function(s, e) {
@@ -576,6 +810,9 @@ gene_data <- bakta_tsv %>%
             is_amr            ~ "AMR / resistance",
             # DefenseFinder before COG V: a confirmed defense system gene is the more specific signal
             is_defense_system ~ "Defense system gene",
+            is_is             ~ "IS element",
+            is_integron       ~ "Integron",
+            is_conjugative    ~ "Conjugative system",
             is_cog_v          ~ "Defense (COG V)",
             is_cog_x          ~ "Mobilome (COG X)",
             is_plasmid_rep | is_plasmid ~ "Plasmid",
@@ -583,14 +820,13 @@ gene_data <- bakta_tsv %>%
             TRUE              ~ "Other"
         ),
         highlight = factor(highlight, 
-            levels = c("AMR / resistance", "Defense system gene", "Defense (COG V)", "Mobilome (COG X)", "Plasmid", "Prophage / viral", "Other")),
+            levels = c("AMR / resistance", "Defense system gene", "IS element", "Integron", "Conjugative system", "Defense (COG V)", "Mobilome (COG X)", "Plasmid", "Prophage / viral", "Other")),
         tooltip = paste0(
             "<b>", coalesce(Gene, "-"), "</b> (", `Locus Tag`, ")",
             "<br>Type: ", Type,
             "<br>Product: ", Product,
             "<br>COG category: ", coalesce(COG_category, "-"),
-            "<br>EggNOG description: ", coalesce(Description, "-"),
-            "<br>Defense system: ", if_else(is.na(System), "-", paste0(System, " (", Component, ")"))
+            "<br>EggNOG description: ", coalesce(Description, "-")
         ),
         midpoint = (Start + Stop) / 2,
         window_num = floor(midpoint / window_size),
@@ -607,6 +843,9 @@ batches <- sort(unique(gene_data$plot_batch))
 highlight_colors <- c(
     "AMR / resistance"     = "#FB8500",
     "Defense system gene"  = "#0B3C5D",
+    "IS element"           = "#8B5E34",
+    "Integron"             = "#E9C46A",
+    "Conjugative system"   = "#2A9D8F",
     "Defense (COG V)"      = "#1c7f97",
     "Mobilome (COG X)"     = "#588157",
     "Plasmid"              = "#A855F7",
@@ -675,7 +914,9 @@ if (!run_metagraph) {
 MetaGraph was used to query selected genes against a large-scale sequence search index to identify 
 the closest matching organisms. Genes can be selected by gene groups (amr: genes overlapping 
 ABRicate AMR hits; plasmid: PlasmidFinder hits and geNomad plasmid regions; virus: geNomad 
-viral regions; cog:LETTERS: genes with the given COG categories in Bakta or EggNOG), by gene name or 
+viral regions; cog:LETTERS: genes with the given COG categories in Bakta or EggNOG; defense: genes of
+DefenseFinder defense systems; mge: genes inside IS elements, integrons and conjugative systems, shown as is,
+integron or conjugative in selected_by), by gene name or
 locus tag, and by genomic regions. The selected_by column in the tables below shows why each 
 gene was queried. For each gene, the top hit was selected based on the highest normalized 
 alignment score. Results include the matched organism, database source, geographic location 

@@ -13,4 +13,8 @@ rule isescan:
     shell:
         """
         isescan.py --seqfile {input.fna} --output {params.outdir} --nthread {threads}
+
+        # create empty files when theres no results
+        [ -f {output.tsv} ] || touch {output.tsv}
+        [ -f {output.sum} ] || touch {output.sum}
         """

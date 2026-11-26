@@ -13,6 +13,10 @@ rule generate_report:
         genomad_plasmid = "results/{sample}/genomad/{sample}_summary/{sample}_plasmid_summary.tsv",
         defensefinder_genes = "results/{sample}/defensefinder/bakta_defense_finder_genes.tsv",
         defensefinder_hmmer = "results/{sample}/defensefinder/bakta_defense_finder_hmmer.tsv",
+        isescan_tsv = "results/{sample}/isescan/bakta/bakta.fna.tsv",
+        integrons = "results/{sample}/integron_finder/Results_Integron_Finder_bakta/bakta.integrons",
+        conjscan_chromosome = "results/{sample}/conjscan/Chromosome/best_solution.tsv",
+        conjscan_plasmids = "results/{sample}/conjscan/Plasmids/best_solution.tsv",
         metagraph = "results/{sample}/metagraph/metagraph_matches.json" if config["metagraph"]["run"] else [],
         selected_genes = "results/{sample}/metagraph/selected_genes.tsv" if config["metagraph"]["run"] else [],
         not_found = "results/{sample}/metagraph/not_found.txt" if config["metagraph"]["run"] else []

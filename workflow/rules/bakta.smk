@@ -47,8 +47,6 @@ rule bakta:
         txt = "results/{sample}/bakta/bakta.txt"
     threads:
         config["bakta"]["threads"]
-    log:
-        "Logs/{sample}/bakta.log"
     conda:
         "../envs/bakta.yaml"
     params:

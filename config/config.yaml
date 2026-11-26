@@ -80,7 +80,10 @@ metagraph:
     #   plasmid - genes overlapping PlasmidFinder hits or geNomad plasmid regions
     #   virus - genes in geNomad viral regions
     #   cog:LETTERS - genes with any of these COG categories, e.g. "cog:VX" or "cog:L"
-    groups: ["amr", "plasmid", "virus", "cog:VX"]
+    #   defense - genes of anti-phage defense systems (DefenseFinder)
+    #   mge - genes inside mobile genetic elements: IS elements (ISEScan), integrons (IntegronFinder)
+    #         and conjugative / mobilizable systems (CONJScan)
+    groups: ["amr", "plasmid", "virus", "cog:VX", "defense", "mge"]
     # Specific genes, used for all samples: gene name or locus tag (not case-sensitive).
     # A * at the end matches any ending, e.g. "blaOXA*" matches blaOXA-1 and blaOXA-258.
     # Example: genes: ["vanB", "ermB", "blaOXA*"]

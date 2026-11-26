@@ -15,6 +15,11 @@ abricate_resfinder_tab = snakemake.input.abricate_resfinder_tab
 abricate_plasmid_tab = snakemake.input.abricate_plasmid_tab
 genomad_plasmid_tsv = snakemake.input.genomad_plasmid_tsv
 genomad_virus_tsv = snakemake.input.genomad_virus_tsv
+defensefinder_genes = snakemake.input.defensefinder_genes
+isescan_tsv = snakemake.input.isescan_tsv
+integrons_file = snakemake.input.integrons
+conjscan_chromosome = snakemake.input.conjscan_chromosome
+conjscan_plasmids = snakemake.input.conjscan_plasmids
 bakta_fna = snakemake.input.bakta_fna
 fasta_output = snakemake.output.output_fasta
 selected_genes_tsv = snakemake.output.selected_genes
@@ -100,7 +105,41 @@ def genomad_locus_tags(tsv):
 if "plasmid" in gene_groups:
     add(genomad_locus_tags(genomad_plasmid_tsv), "plasmid")
 if "virus" in gene_groups:
-    add(genomad_locus_tags(genomad_virus_tsv), "virus")    
+    add(genomad_locus_tags(genomad_virus_tsv), "virus")
+
+# Read a tool's result table; returns an empty table if the file is empty or has only "#" lines
+# (ISEScan writes an empty file, IntegronFinder and CONJScan only "#" lines when nothing is found)
+def read_table(path, **kwargs):
+    try:
+        return pd.read_csv(path, sep='\t', **kwargs)
+    except pd.errors.EmptyDataError:
+        return pd.DataFrame()
+
+# Genes of DefenseFinder defense systems (hit_id = Bakta locus tag)
+if "defense" in gene_groups:
+    defense_df = read_table(defensefinder_genes)
+    if not defense_df.empty:
+        add(set(defense_df['hit_id']), "defense")
+
+# Mobile genetic elements: genes inside IS elements (ISEScan), integrons (IntegronFinder)
+# and conjugative / mobilizable systems (CONJScan). One group in the config, separate reasons in selected_by.
+if "mge" in gene_groups:
+    is_df = read_table(isescan_tsv)
+    for _, row in is_df.iterrows():
+        add(overlapping_locu_tags(row['seqID'], row['isBegin'], row['isEnd']), "is")
+
+    # One region per integron, from its first to its last element
+    integron_df = read_table(integrons_file, comment='#')
+    if not integron_df.empty:
+        regions = integron_df.groupby(['ID_integron', 'ID_replicon']).agg(start=('pos_beg', 'min'), end=('pos_end', 'max'))
+        for (_, contig), region in regions.iterrows():
+            add(overlapping_locu_tags(contig, region['start'], region['end']), "integron")
+
+    # Both CONJScan model sets (hit_id = Bakta locus tag)
+    for path in (conjscan_chromosome, conjscan_plasmids):
+        conj_df = read_table(path, comment='#')
+        if not conj_df.empty:
+            add(set(conj_df['hit_id']), "conjugative")
 
 # Requested genes or regions that were not found in this sample
 not_found = []

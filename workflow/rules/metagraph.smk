@@ -8,6 +8,11 @@ rule extract_genes:
         abricate_plasmid_tab = "results/{sample}/abricate/abricate_PlasmidFinder.tab",
         genomad_plasmid_tsv = "results/{sample}/genomad/{sample}_summary/{sample}_plasmid_genes.tsv",
         genomad_virus_tsv = "results/{sample}/genomad/{sample}_summary/{sample}_virus_genes.tsv",
+        defensefinder_genes = "results/{sample}/defensefinder/bakta_defense_finder_genes.tsv",
+        isescan_tsv = "results/{sample}/isescan/bakta/bakta.fna.tsv",
+        integrons = "results/{sample}/integron_finder/Results_Integron_Finder_bakta/bakta.integrons",
+        conjscan_chromosome = "results/{sample}/conjscan/Chromosome/best_solution.tsv",
+        conjscan_plasmids = "results/{sample}/conjscan/Plasmids/best_solution.tsv",
         bakta_fna = "results/{sample}/bakta/bakta.fna"
     output:
         output_fasta = "results/{sample}/metagraph/extracted_genes.fasta",

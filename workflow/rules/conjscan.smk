@@ -26,5 +26,5 @@ rule conjscan:
         """
         macsyfinder --db-type ordered_replicon \
             --sequence-db {input.faa} --models CONJScan/{wildcards.modelset} all \
-            --models-dir {input.db} -w {threads} -o {params.outdir}
+            --models-dir {input.db} -w {threads} -o {params.outdir} --force
         """

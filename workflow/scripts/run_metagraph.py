@@ -23,11 +23,28 @@ for record in SeqIO.parse(fasta_file, "fasta"):
     sequences_ids.append(record.id)
 
 # Metagraph API interaction functions
+# How often to retry a search the server refused with HTTP 429 (too many requests), and the first wait in seconds
+MAX_RETRIES = 6
+RETRY_WAIT = 10
+
+# Submit a search, retrying with longer waits while the server answers HTTP 429 (too many requests)
+def submit_with_retry(payload, sequence_id):
+    wait = RETRY_WAIT
+    for attempt in range(MAX_RETRIES + 1):
+        response = requests.post("https://metagraph.ethz.ch:8081/search", json=payload)
+        if response.status_code != 429 or attempt == MAX_RETRIES:
+            return response
+        # Use the server's Retry-After time if it gives one, otherwise wait longer after each try
+        retry_after = response.headers.get("Retry-After", "")
+        pause = int(retry_after) if retry_after.isdigit() else wait
+        print(f"  {sequence_id}: HTTP 429 (too many requests), retrying in {pause} s")
+        time.sleep(pause)
+        wait *= 2
+
 # Query Metagraph databases with a sequence and return the search_id
 def query_metagraph(sequence, sequence_id):
-    response = requests.post(
-        "https://metagraph.ethz.ch:8081/search",
-        json={
+    response = submit_with_retry(
+        {
             "queries": [
                 {
                     "db": "sra-microbe",
@@ -38,7 +55,7 @@ def query_metagraph(sequence, sequence_id):
                     }
                 },
                 {
-                    "db": "refseq33m",
+                    "db": "refseq",
                     "q": sequence,
                     "params":  {
                         "discovery_threshold" : disc_threshold,
@@ -57,6 +74,7 @@ def query_metagraph(sequence, sequence_id):
             ],
             "search_name": f"{sequence_id} search"
         },
+        sequence_id
     )
 
     print(f"  {sequence_id}: HTTP {response.status_code}")
@@ -128,6 +146,11 @@ for i, (seq, seq_id) in enumerate(zip(sequences, sequences_ids), 1):
         import traceback
         traceback.print_exc()
         continue
+
+# Genes were sent but no search succeeded (e.g. server errors): stop with an error instead of
+# writing an empty result, so Snakemake marks this step as failed
+if sequences and not all_results:
+    sys.exit(f"All {len(sequences)} MetaGraph queries failed, no results to write. See the messages above.")
 
 with open(output_file, "w") as f:
     json.dump(all_results, f, indent=2)
